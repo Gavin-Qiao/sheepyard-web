@@ -1,0 +1,10 @@
+{
+    # Internal Caddy for the frontend container
+    admin off
+}
+
+:80 {
+    root * /usr/share/caddy
+    file_server
+    try_files {path} /index.html
+}
