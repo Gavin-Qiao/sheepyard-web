@@ -67,7 +67,10 @@ def login():
     )
 
 @app.get("/api/auth/callback")
-async def auth_callback(code: str, session: SessionDep):
+async def auth_callback(session: SessionDep, code: str = None, error: str = None):
+    if error:
+        raise HTTPException(status_code=400, detail=f"Authentication error: {error}")
+
     if not code:
         raise HTTPException(status_code=400, detail="Code missing")
 
