@@ -1,25 +1,72 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
+import { useAuthStore } from './auth/store';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
 
-function App() {
-  const [status, setStatus] = useState<string>('Loading...')
+const AuthCallback: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const setToken = useAuthStore((state) => state.setToken);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   useEffect(() => {
-    fetch('/api/health')
-      .then((res) => res.json())
-      .then((data) => setStatus(data.status))
-      .catch(() => setStatus('Error fetching status'))
-  }, [])
+    const token = searchParams.get('token');
+    if (token) {
+      setToken(token);
+    }
+  }, [searchParams, setToken]);
 
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // If no token in URL and not authenticated, redirect to login
+  if (!searchParams.get('token')) {
+      return <Navigate to="/login" replace />;
+  }
+
+  return <div className="flex justify-center items-center h-screen">Processing Login...</div>;
+};
+
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, fetchUser, user, isLoading } = useAuthStore();
+
+  useEffect(() => {
+    if (isAuthenticated && !user) {
+        fetchUser();
+    }
+  }, [isAuthenticated, user, fetchUser]);
+
+  if (isLoading) {
+      return <div className="flex justify-center items-center h-screen">Loading User Data...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+function App() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="p-8 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold mb-4 text-gray-800">System Status</h1>
-        <p className="text-gray-600">
-          Backend Status: <span className="font-semibold text-green-600">{status}</span>
-        </p>
-      </div>
-    </div>
-  )
+    <Router>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<AuthCallback />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        {/* Catch all redirect */}
+         <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </Router>
+  );
 }
 
-export default App
+export default App;
