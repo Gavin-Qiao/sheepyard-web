@@ -126,7 +126,7 @@ async def auth_callback(session: SessionDep, code: str = None, error: str = None
     return RedirectResponse(url=f"/?token={access_token}")
 
 @app.get("/api/users/me", response_model=User)
-def read_users_me(token_data: TokenData = Depends(verify_token), session: SessionDep):
+def read_users_me(session: SessionDep, token_data: TokenData = Depends(verify_token)):
     """
     Get the current authenticated user.
     """
