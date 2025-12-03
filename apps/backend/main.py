@@ -127,6 +127,9 @@ async def auth_callback(session: SessionDep, code: str = None, error: str = None
 
 @app.get("/api/users/me", response_model=User)
 def read_users_me(token_data: TokenData = Depends(verify_token), session: SessionDep):
+    """
+    Get the current authenticated user.
+    """
     statement = select(User).where(User.discord_id == token_data.discord_id)
     results = session.exec(statement)
     user = results.first()
