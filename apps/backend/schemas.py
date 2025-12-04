@@ -39,3 +39,6 @@ class PollRead(PollBase):
     creator_id: int
     created_at: datetime
     options: List[PollOptionRead]
+
+class VoteCreate(SQLModel):
+    poll_option_id: int
