@@ -1,4 +1,5 @@
 import httpx
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlmodel import Session, select
@@ -29,7 +30,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(request: Request, session: Session = Depends(get_session)):
+def get_current_user(request: Request, session: Session = Depends(get_session)):
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -50,11 +51,11 @@ async def get_current_user(request: Request, session: Session = Depends(get_sess
 @router.get("/auth/login")
 def login():
     return RedirectResponse(
-        f"https://discord.com/api/oauth2/authorize?client_id={settings.DISCORD_CLIENT_ID}&redirect_uri={settings.DISCORD_REDIRECT_URI}&response_type=code&scope=identify%20guilds"
+        f"https://discord.com/api/oauth2/authorize?client_id={settings.DISCORD_CLIENT_ID}&redirect_uri={quote(settings.DISCORD_REDIRECT_URI)}&response_type=code&scope=identify%20guilds"
     )
 
 @router.get("/auth/callback")
-async def callback(code: str, response: Response, session: Session = Depends(get_session)):
+def callback(code: str, response: Response, session: Session = Depends(get_session)):
     data = {
         "client_id": settings.DISCORD_CLIENT_ID,
         "client_secret": settings.DISCORD_CLIENT_SECRET,
@@ -64,8 +65,8 @@ async def callback(code: str, response: Response, session: Session = Depends(get
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
-    async with httpx.AsyncClient() as client:
-        token_response = await client.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
+    with httpx.Client() as client:
+        token_response = client.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
         if token_response.status_code != 200:
             return HTMLResponse(content="<h1>Login Failed: Could not get token from Discord</h1>", status_code=400)
 
@@ -73,14 +74,14 @@ async def callback(code: str, response: Response, session: Session = Depends(get
         access_token = token_data["access_token"]
 
         # Get User Info
-        user_response = await client.get("https://discord.com/api/users/@me", headers={"Authorization": f"Bearer {access_token}"})
+        user_response = client.get("https://discord.com/api/users/@me", headers={"Authorization": f"Bearer {access_token}"})
         if user_response.status_code != 200:
             return HTMLResponse(content="<h1>Login Failed: Could not get user info</h1>", status_code=400)
 
         user_data = user_response.json()
 
         # Get User Guilds
-        guilds_response = await client.get("https://discord.com/api/users/@me/guilds", headers={"Authorization": f"Bearer {access_token}"})
+        guilds_response = client.get("https://discord.com/api/users/@me/guilds", headers={"Authorization": f"Bearer {access_token}"})
         if guilds_response.status_code != 200:
             return HTMLResponse(content="<h1>Login Failed: Could not get guilds</h1>", status_code=400)
 
