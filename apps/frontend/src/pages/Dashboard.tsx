@@ -1,7 +1,8 @@
 import React from 'react';
 import { Background } from '../components/Background';
 import { motion } from 'framer-motion';
-import { Hammer, LogOut, LayoutGrid, User as UserIcon } from 'lucide-react';
+import { Hammer, LogOut, LayoutGrid, User as UserIcon, Calendar as CalendarIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface User {
   id: number;
@@ -101,21 +102,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             {/* Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-                {/* Under Construction Card */}
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.6, duration: 0.8 }}
-                    className="col-span-1 min-h-[200px] border border-jade-200 bg-white/40 backdrop-blur-sm rounded-xl p-6 flex flex-col items-center justify-center text-center hover:shadow-lg hover:shadow-jade-100/50 transition-all duration-500 cursor-default group"
-                >
-                    <div className="bg-jade-50 p-4 rounded-full mb-4 group-hover:bg-jade-100 transition-colors duration-500">
-                        <Hammer className="text-jade-500 w-6 h-6" />
-                    </div>
-                    <h3 className="text-lg font-serif text-ink mb-2">Under Construction</h3>
-                    <p className="text-sm text-jade-600 font-sans leading-relaxed">
-                        New tools are being forged in the mist. <br/> Check back soon.
-                    </p>
-                </motion.div>
+                {/* Calendar App Card */}
+                <Link to="/apps/calendar">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.6, duration: 0.8 }}
+                        className="col-span-1 h-full min-h-[200px] border border-jade-200 bg-white/40 backdrop-blur-sm rounded-xl p-6 flex flex-col items-center justify-center text-center hover:shadow-lg hover:shadow-jade-100/50 transition-all duration-500 cursor-pointer group"
+                    >
+                        <div className="bg-jade-50 p-4 rounded-full mb-4 group-hover:bg-jade-100 transition-colors duration-500">
+                            <CalendarIcon className="text-jade-500 w-6 h-6" />
+                        </div>
+                        <h3 className="text-lg font-serif text-ink mb-2">Moonlight Calendar</h3>
+                        <p className="text-sm text-jade-600 font-sans leading-relaxed">
+                            Coordinate your gatherings <br/> under the pale moon.
+                        </p>
+                    </motion.div>
+                </Link>
 
                 {/* Placeholder Cards for layout demonstration */}
                 {[1, 2].map((i) => (
