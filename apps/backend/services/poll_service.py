@@ -2,7 +2,7 @@ from typing import List, Optional
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
-from models import Poll, PollOption, User
+from models import Poll, PollOption, User, Vote
 from schemas import PollCreate, PollOptionCreate
 from services.notification import NotificationService, NoOpNotificationService
 import logging
@@ -65,7 +65,10 @@ class PollService:
 
     def get_poll(self, poll_id: int) -> Poll:
         # Eager load options to avoid N+1 and ensure they are present
-        statement = select(Poll).where(Poll.id == poll_id).options(selectinload(Poll.options))
+        statement = select(Poll).where(Poll.id == poll_id).options(
+            selectinload(Poll.options).selectinload(PollOption.votes).selectinload(Vote.user),
+            selectinload(Poll.creator)
+        )
         poll = self.session.exec(statement).first()
         if not poll:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poll not found")

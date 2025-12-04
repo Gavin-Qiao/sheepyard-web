@@ -3,6 +3,12 @@ from datetime import datetime
 from sqlmodel import SQLModel
 from pydantic import validator
 
+class UserRead(SQLModel):
+    id: int
+    username: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
 class PollOptionBase(SQLModel):
     label: str
     start_time: datetime
@@ -42,3 +48,14 @@ class PollRead(PollBase):
 
 class VoteCreate(SQLModel):
     poll_option_id: int
+
+class VoteRead(SQLModel):
+    poll_option_id: int
+    user: UserRead
+
+class PollOptionReadWithVotes(PollOptionRead):
+    votes: List[VoteRead] = []
+
+class PollReadWithDetails(PollRead):
+    creator: UserRead
+    options: List[PollOptionReadWithVotes]

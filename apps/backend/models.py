@@ -10,6 +10,7 @@ class User(SQLModel, table=True):
     avatar_url: Optional[str] = None
 
     polls: List["Poll"] = Relationship(back_populates="creator")
+    votes: List["Vote"] = Relationship(back_populates="user")
 
 class Poll(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -29,6 +30,7 @@ class PollOption(SQLModel, table=True):
     end_time: datetime
 
     poll: Optional[Poll] = Relationship(back_populates="options")
+    votes: List["Vote"] = Relationship(back_populates="poll_option")
 
 class Vote(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("poll_option_id", "user_id"),)
@@ -36,3 +38,6 @@ class Vote(SQLModel, table=True):
     poll_option_id: int = Field(foreign_key="polloption.id")
     user_id: int = Field(foreign_key="user.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    poll_option: Optional[PollOption] = Relationship(back_populates="votes")
+    user: Optional[User] = Relationship(back_populates="votes")

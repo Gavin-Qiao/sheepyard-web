@@ -17,7 +17,6 @@ interface Poll {
   description?: string;
   creator_id: number;
   created_at: string;
-  is_active: boolean;
   options: PollOption[];
 }
 
@@ -75,7 +74,9 @@ const PollList: React.FC = () => {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {polls.map((poll, index) => (
+                    {polls.map((poll, index) => {
+                        const isActive = poll.options.some(opt => new Date(opt.end_time) > new Date());
+                        return (
                         <motion.div
                             key={poll.id}
                             initial={{ opacity: 0, y: 20 }}
@@ -88,8 +89,8 @@ const PollList: React.FC = () => {
                                         <h3 className="text-xl font-serif text-ink group-hover:text-jade-700 transition-colors line-clamp-2">
                                             {poll.title}
                                         </h3>
-                                        <span className={`text-xs px-2 py-1 rounded-full ${poll.is_active ? 'bg-jade-100 text-jade-700' : 'bg-gray-100 text-gray-500'}`}>
-                                            {poll.is_active ? 'Active' : 'Closed'}
+                                        <span className={`text-xs px-2 py-1 rounded-full ${isActive ? 'bg-jade-100 text-jade-700' : 'bg-gray-100 text-gray-500'}`}>
+                                            {isActive ? 'Active' : 'Closed'}
                                         </span>
                                     </div>
 
@@ -112,7 +113,8 @@ const PollList: React.FC = () => {
                                 </div>
                             </Link>
                         </motion.div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>

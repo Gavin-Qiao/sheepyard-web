@@ -37,7 +37,6 @@ describe('PollList Component', () => {
                 title: 'Test Poll',
                 description: 'Test Desc',
                 created_at: new Date().toISOString(),
-                is_active: true,
                 options: []
             }
         ];
