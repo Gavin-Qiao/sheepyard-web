@@ -51,7 +51,7 @@ def get_current_user(request: Request, session: Session = Depends(get_session)):
 @router.get("/auth/login")
 def login():
     return RedirectResponse(
-        f"https://discord.com/api/oauth2/authorize?client_id={settings.DISCORD_CLIENT_ID}&redirect_uri={quote(settings.DISCORD_REDIRECT_URI)}&response_type=code&scope=identify%20guilds"
+        f"https://discord.com/api/oauth2/authorize?client_id={settings.DISCORD_CLIENT_ID}&redirect_uri={quote(settings.DISCORD_REDIRECT_URI)}&response_type=code&scope=identify%20guilds%20guilds.members.read"
     )
 
 @router.get("/auth/callback")
@@ -91,6 +91,21 @@ def callback(code: str, response: Response, session: Session = Depends(get_sessi
         if not is_member:
             return HTMLResponse(content="<h1>Login Failed: You are not a member of the required Discord Server.</h1>", status_code=403)
 
+        # Get Guild Member Profile (Nickname)
+        member_response = client.get(
+            f"https://discord.com/api/users/@me/guilds/{settings.DISCORD_GUILD_ID}/member",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+
+        display_name = None
+        if member_response.status_code == 200:
+            member_data = member_response.json()
+            display_name = member_data.get("nick")
+
+        # Fallback to global display name or username if no nick
+        if not display_name:
+            display_name = user_data.get("global_name") or user_data.get("username")
+
         # Create or Update User
         discord_id = user_data["id"]
         username = user_data["username"]
@@ -100,10 +115,16 @@ def callback(code: str, response: Response, session: Session = Depends(get_sessi
         db_user = session.exec(statement).first()
 
         if not db_user:
-            db_user = User(discord_id=discord_id, username=username, avatar_url=avatar_url)
+            db_user = User(
+                discord_id=discord_id,
+                username=username,
+                display_name=display_name,
+                avatar_url=avatar_url
+            )
             session.add(db_user)
         else:
             db_user.username = username
+            db_user.display_name = display_name
             db_user.avatar_url = avatar_url
             session.add(db_user)
 
@@ -130,3 +151,8 @@ def callback(code: str, response: Response, session: Session = Depends(get_sessi
 @router.get("/users/me")
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.post("/auth/logout")
+def logout(response: Response):
+    response.delete_cookie(key="access_token", httponly=True, samesite="lax", secure=False)
+    return {"message": "Logged out successfully"}
