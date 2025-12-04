@@ -153,7 +153,6 @@ def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 @router.post("/auth/logout")
-def logout():
-    response = RedirectResponse(url="/")
-    response.delete_cookie(key="access_token", httponly=True, samesite="lax")
+def logout(response: Response):
+    response.delete_cookie(key="access_token", httponly=True, samesite="lax", secure=False)
     return {"message": "Logged out successfully"}
