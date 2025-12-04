@@ -1,52 +1,16 @@
 import httpx
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi import APIRouter, Depends, Response
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlmodel import Session, select
-from jose import jwt, JWTError
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import timedelta
 
 from config import settings
 from models import User
-from database import engine
+from dependencies import get_session, get_current_user
+from security import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 
 router = APIRouter()
-
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
-
-def get_session():
-    with Session(engine) as session:
-        yield session
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-def get_current_user(request: Request, session: Session = Depends(get_session)):
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-        discord_id: str = payload.get("sub")
-        if discord_id is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-    statement = select(User).where(User.discord_id == discord_id)
-    user = session.exec(statement).first()
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    return user
 
 @router.get("/auth/login")
 def login():
