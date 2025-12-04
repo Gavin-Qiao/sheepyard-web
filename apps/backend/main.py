@@ -1,24 +1,25 @@
 from fastapi import FastAPI
-import os
-import sqlite3
+from sqlmodel import SQLModel
+from config import settings
+from auth import router as auth_router
+from database import engine
 
+print("Initializing FastAPI app...")
 app = FastAPI()
 
-DB_PATH = os.getenv("DB_PATH", "/data/app.db")
+app.include_router(auth_router, prefix="/api")
 
-def init_db():
-    # Ensure directory exists if it's not the root
-    db_dir = os.path.dirname(DB_PATH)
-    if db_dir and not os.path.exists(db_dir):
-        os.makedirs(db_dir, exist_ok=True)
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.close()
+def create_db_and_tables():
+    print("Creating database tables...")
+    SQLModel.metadata.create_all(engine)
+    print("Database tables created.")
 
 @app.on_event("startup")
-def startup_event():
-    init_db()
+def on_startup():
+    print("Startup event triggered.")
+    create_db_and_tables()
 
 @app.get("/api/health")
 def read_root():
+    print("Health check endpoint called!")
     return {"status": "ok"}
