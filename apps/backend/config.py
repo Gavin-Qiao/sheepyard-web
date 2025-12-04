@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+import sys
 
 class Settings(BaseSettings):
     DISCORD_CLIENT_ID: str
@@ -13,4 +14,13 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
 
-settings = Settings()
+try:
+    print("Loading environment variables...")
+    settings = Settings()
+    print("Environment variables loaded successfully.")
+except Exception as e:
+    print("CRITICAL ERROR: Failed to load environment variables. Check your .env file or environment variables.")
+    print(f"Details: {e}")
+    # We re-raise to ensure the app doesn't start in an invalid state,
+    # but the print above helps the user see it in the logs immediately.
+    raise e

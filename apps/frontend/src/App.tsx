@@ -13,24 +13,51 @@ function App() {
   const [loadingUser, setLoadingUser] = useState(true)
 
   useEffect(() => {
+    console.log("Fetching backend health status...");
     fetch('/api/health')
-      .then((res) => res.json())
-      .then((data) => setStatus(data.status))
-      .catch(() => setStatus('Error fetching status'))
+      .then((res) => {
+        console.log("Health check response status:", res.status);
+        return res.json();
+      })
+      .then((data) => {
+        console.log("Health check data:", data);
+        setStatus(data.status);
+      })
+      .catch((error) => {
+        console.error("Error fetching health status:", error);
+        setStatus('Error fetching status');
+      })
 
+    console.log("Fetching user profile...");
     fetch('/api/users/me')
       .then((res) => {
+        console.log("User profile response status:", res.status);
         if (res.ok) {
           return res.json()
         }
+        if (res.status === 401) {
+            console.log("User is not authenticated (401).");
+        } else {
+            console.error("Unexpected error fetching user profile:", res.status);
+        }
         throw new Error('Not authenticated')
       })
-      .then((data) => setUser(data))
-      .catch(() => setUser(null))
+      .then((data) => {
+        console.log("User profile data:", data);
+        setUser(data)
+      })
+      .catch((e) => {
+         // Only log if it's not the expected 'Not authenticated' error for cleaner logs
+         if (e.message !== 'Not authenticated') {
+             console.error("Error fetching user:", e);
+         }
+         setUser(null)
+      })
       .finally(() => setLoadingUser(false))
   }, [])
 
   const handleLogin = () => {
+    console.log("Redirecting to login...");
     window.location.href = '/api/auth/login'
   }
 
