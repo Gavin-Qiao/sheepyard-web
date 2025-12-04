@@ -6,9 +6,11 @@ from database import engine
 from sqlalchemy import text
 # Import models to ensure they are registered with SQLModel
 from models import User, Poll, PollOption, Vote
-from schemas import VoteCreate
+from schemas import VoteCreate, PollCreate, PollRead, PollReadWithDetails
 from services.vote_service import VoteService
+from services.poll_service import PollService
 from services.notification import NoOpNotificationService
+from typing import List
 
 print("Initializing FastAPI app...")
 app = FastAPI()
@@ -42,6 +44,40 @@ def on_startup():
 def read_root():
     print("Health check endpoint called!")
     return {"status": "ok"}
+
+@app.get("/api/polls", response_model=List[PollRead])
+def list_polls(
+    session: Session = Depends(lambda: Session(engine))
+):
+    """
+    List all polls.
+    """
+    poll_service = PollService(session)
+    return poll_service.list_polls()
+
+@app.post("/api/polls", response_model=PollRead)
+def create_poll(
+    poll_data: PollCreate,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(lambda: Session(engine))
+):
+    """
+    Create a new poll.
+    """
+    notification_service = NoOpNotificationService()
+    poll_service = PollService(session, notification_service)
+    return poll_service.create_poll(poll_data, user)
+
+@app.get("/api/polls/{poll_id}", response_model=PollReadWithDetails)
+def get_poll(
+    poll_id: int,
+    session: Session = Depends(lambda: Session(engine))
+):
+    """
+    Get a poll by ID.
+    """
+    poll_service = PollService(session)
+    return poll_service.get_poll(poll_id)
 
 @app.post("/api/votes")
 def vote(

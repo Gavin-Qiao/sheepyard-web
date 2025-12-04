@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import CalendarApp from './apps/calendar/CalendarApp';
 
 interface User {
   id: number
@@ -65,6 +66,10 @@ function App() {
             <Route
                 path="/"
                 element={user ? <Dashboard user={user} /> : <Navigate to="/login" replace />}
+            />
+            <Route
+                path="/apps/calendar/*"
+                element={user ? <CalendarApp /> : <Navigate to="/login" replace />}
             />
             {/* Catch all redirect */}
             <Route path="*" element={<Navigate to="/" replace />} />
