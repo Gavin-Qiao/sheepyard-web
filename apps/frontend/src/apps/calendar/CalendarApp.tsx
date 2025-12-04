@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Calendar as CalendarIcon, ArrowLeft, Plus, Loader2 } from 'lucide-react';
+import React from 'react';
+import { Routes, Route, Link } from 'react-router-dom';
+import { Calendar as CalendarIcon, ArrowLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 

@@ -4,7 +4,7 @@ import PollCreate from '../apps/calendar/components/PollCreate';
 import { MemoryRouter } from 'react-router-dom';
 
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+globalThis.fetch = mockFetch;
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {

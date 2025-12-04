@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
-import { Check, Loader2, User as UserIcon, HelpCircle } from 'lucide-react';
+import { Check, Loader2, User as UserIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';

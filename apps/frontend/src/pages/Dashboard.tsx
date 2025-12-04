@@ -1,7 +1,7 @@
 import React from 'react';
 import { Background } from '../components/Background';
 import { motion } from 'framer-motion';
-import { Hammer, LogOut, LayoutGrid, User as UserIcon, Calendar as CalendarIcon } from 'lucide-react';
+import { LogOut, LayoutGrid, User as UserIcon, Calendar as CalendarIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface User {

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import PollDetail from '../apps/calendar/components/PollDetail';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+globalThis.fetch = mockFetch;
 
 describe('PollDetail Component', () => {
     beforeEach(() => {
