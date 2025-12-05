@@ -3,7 +3,7 @@ import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDa
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Link } from 'react-router-dom';
-import { ZoomOut } from 'lucide-react';
+import { ZoomOut, Crown } from 'lucide-react';
 import CalendarYearView from './CalendarYearView';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -110,17 +110,16 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
 
     return (
         <div className="bg-white/60 backdrop-blur-md border border-jade-200 rounded-xl shadow-sm overflow-hidden p-6 relative">
-             <button
-                onClick={() => setViewMode('year')}
-                className="absolute top-6 right-24 p-2 text-jade-500 hover:text-jade-700 hover:bg-jade-100 rounded-full transition-colors"
-                title="Zoom Out to Year View"
-            >
-                <ZoomOut size={20} />
-            </button>
-
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-serif text-ink">{format(currentDate, 'MMMM yyyy')}</h2>
-                <div className="flex space-x-2">
+                <div className="flex items-center space-x-2">
+                     <button
+                        onClick={() => setViewMode('year')}
+                        className="p-1 mr-2 text-jade-500 hover:text-jade-700 hover:bg-jade-100 rounded-full transition-colors"
+                        title="Zoom Out to Year View"
+                    >
+                        <ZoomOut size={20} />
+                    </button>
                     <button onClick={prevMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600">Prev</button>
                     <button onClick={nextMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600">Next</button>
                 </div>
@@ -161,6 +160,13 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
 
                                     const voters = option.votes?.map(v => v.user) || [];
                                     const creator = poll.creator;
+                                    // Remove creator from voters list if present to avoid duplication/confusion if they voted
+                                    // But user asked to separate creator.
+                                    // "The creator of the pool can also vote for the pool."
+                                    // "Creator left-left aligned and the voter right aligned."
+
+                                    // Let's filter out creator from voters list for the "right aligned" part
+                                    const otherVoters = voters.filter(v => v.id !== creator?.id);
 
                                     return (
                                         <Link
@@ -169,32 +175,56 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                                             className="block text-[10px] bg-jade-50 border border-jade-100 p-1 rounded hover:bg-jade-100 transition-colors"
                                         >
                                             <div className="font-bold text-jade-800 truncate mb-1">{poll.title}</div>
-                                            <div className="flex items-center -space-x-1.5 overflow-hidden pb-0.5">
-                                                {/* Creator Icon */}
+
+                                            <div className="flex items-center justify-between pb-0.5">
+                                                {/* Creator (Left) */}
                                                 {creator && (
-                                                    <div className="relative z-20" title={`Creator: ${creator.display_name || creator.username}`}>
-                                                        {creator.avatar_url ? (
-                                                            <img src={creator.avatar_url} className="w-4 h-4 rounded-full ring-1 ring-white" />
-                                                        ) : (
-                                                            <div className="w-4 h-4 rounded-full bg-jade-600 text-white flex items-center justify-center text-[8px] ring-1 ring-white">
-                                                                {creator.username[0].toUpperCase()}
+                                                    <div className="relative z-20 shrink-0" title={`Creator: ${creator.display_name || creator.username}`}>
+                                                        <div className="relative">
+                                                             {creator.avatar_url ? (
+                                                                <img src={creator.avatar_url} className="w-4 h-4 rounded-full ring-1 ring-white" />
+                                                            ) : (
+                                                                <div className="w-4 h-4 rounded-full bg-jade-600 text-white flex items-center justify-center text-[8px] ring-1 ring-white">
+                                                                    {creator.username[0].toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                            {/* Crown Overlay */}
+                                                            <div className="absolute -top-1.5 -left-1.5 bg-yellow-400 rounded-full p-[1px] border border-white">
+                                                                <Crown size={6} className="text-yellow-800" fill="currentColor" />
                                                             </div>
-                                                        )}
+                                                        </div>
                                                     </div>
                                                 )}
 
-                                                {/* Voter Icons */}
-                                                {voters.map((voter, i) => (
-                                                    <div key={i} className="relative z-10" title={`Voter: ${voter.display_name || voter.username}`}>
-                                                        {voter.avatar_url ? (
-                                                             <img src={voter.avatar_url} className="w-4 h-4 rounded-full ring-1 ring-white" />
-                                                        ) : (
-                                                             <div className="w-4 h-4 rounded-full bg-jade-300 text-jade-800 flex items-center justify-center text-[8px] ring-1 ring-white">
-                                                                {voter.username[0].toUpperCase()}
-                                                             </div>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                                {/* Voters (Right) - Stacked if many */}
+                                                <div className="flex items-center -space-x-1.5 overflow-hidden justify-end flex-1 ml-1">
+                                                    {otherVoters.map((voter, i) => (
+                                                        <div key={i} className="relative z-10" title={`Voter: ${voter.display_name || voter.username}`}>
+                                                            {voter.avatar_url ? (
+                                                                 <img src={voter.avatar_url} className="w-4 h-4 rounded-full ring-1 ring-white" />
+                                                            ) : (
+                                                                 <div className="w-4 h-4 rounded-full bg-jade-300 text-jade-800 flex items-center justify-center text-[8px] ring-1 ring-white">
+                                                                    {voter.username[0].toUpperCase()}
+                                                                 </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                    {/* If creator voted but is not in otherVoters, we might want to indicate they voted.
+                                                        But usually the crown implies they are the "Owner".
+                                                        If the user requirement implies seeing *if* the creator voted, we might need a visual cue.
+                                                        "The creator of the pool can also vote for the pool. In that case, the creator and the voters are not distinguishable"
+                                                        This suggests we want to distinguish the creator from normal voters.
+                                                        The crown does that.
+                                                        If the creator voted, do we show them AGAIN in the right list?
+                                                        "Creator left-left aligned and the voter right aligned."
+                                                        I think separating them is enough. The crown shows they are creator.
+                                                        If they voted, they are a voter too.
+                                                        Maybe we keep them in the voters list if they voted?
+                                                        But then they appear twice?
+                                                        Let's just show other voters on the right.
+                                                     */}
+                                                </div>
+
                                                 {voters.length === 0 && !creator && <span className="text-jade-300 italic">No participants</span>}
                                             </div>
                                         </Link>
