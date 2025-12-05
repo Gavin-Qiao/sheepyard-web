@@ -20,7 +20,7 @@ class Poll(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     creator: Optional[User] = Relationship(back_populates="polls")
-    options: List["PollOption"] = Relationship(back_populates="poll")
+    options: List["PollOption"] = Relationship(back_populates="poll", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 class PollOption(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -30,7 +30,7 @@ class PollOption(SQLModel, table=True):
     end_time: datetime
 
     poll: Optional[Poll] = Relationship(back_populates="options")
-    votes: List["Vote"] = Relationship(back_populates="poll_option")
+    votes: List["Vote"] = Relationship(back_populates="poll_option", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 class Vote(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("poll_option_id", "user_id"),)
