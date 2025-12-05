@@ -12,11 +12,19 @@ interface PollOption {
   end_time: string;
 }
 
+interface User {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar_url?: string;
+}
+
 interface Poll {
   id: number;
   title: string;
   description?: string;
   creator_id: number;
+  creator?: User;
   created_at: string;
   options: PollOption[];
 }
@@ -97,7 +105,7 @@ const PollList: React.FC = () => {
             ) : (
                 <>
                     {viewMode === 'list' ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {polls.map((poll, index) => {
                                 const isActive = poll.options.some(opt => new Date(opt.end_time) > new Date());
                                 return (
@@ -108,7 +116,7 @@ const PollList: React.FC = () => {
                                     transition={{ delay: index * 0.05 }}
                                 >
                                     <Link to={`${poll.id}`} className="block h-full">
-                                        <div className="h-full bg-white/60 backdrop-blur-sm border border-jade-100 rounded-xl p-6 hover:shadow-lg hover:border-jade-300 transition-all duration-300 group">
+                                        <div className="h-full bg-white/60 backdrop-blur-sm border border-jade-100 rounded-xl p-6 hover:shadow-lg hover:border-jade-300 transition-all duration-300 group flex flex-col">
                                             <div className="flex justify-between items-start mb-4">
                                                 <h3 className="text-xl font-serif text-ink group-hover:text-jade-700 transition-colors line-clamp-2">
                                                     {poll.title}
@@ -124,14 +132,32 @@ const PollList: React.FC = () => {
                                                 </p>
                                             )}
 
-                                            <div className="flex items-center text-xs text-jade-500 space-x-4 mt-auto pt-4 border-t border-jade-50">
-                                                <div className="flex items-center space-x-1">
-                                                    <Calendar size={14} />
-                                                    <span>{poll.options.length} Options</span>
-                                                </div>
-                                                <div className="flex items-center space-x-1">
-                                                    <Clock size={14} />
-                                                    <span>Created {format(new Date(poll.created_at), 'MMM d')}</span>
+                                            <div className="mt-auto pt-4 space-y-3 border-t border-jade-50">
+                                                {/* Creator Info */}
+                                                {poll.creator && (
+                                                    <div className="flex items-center space-x-2">
+                                                        {poll.creator.avatar_url ? (
+                                                            <img src={poll.creator.avatar_url} alt={poll.creator.username} className="w-5 h-5 rounded-full ring-1 ring-jade-200" />
+                                                        ) : (
+                                                            <div className="w-5 h-5 rounded-full bg-jade-200 text-jade-700 flex items-center justify-center text-[10px] font-bold ring-1 ring-jade-200">
+                                                                {poll.creator.username[0].toUpperCase()}
+                                                            </div>
+                                                        )}
+                                                        <span className="text-xs text-jade-600">
+                                                            Created by <span className="font-semibold">{poll.creator.display_name || poll.creator.username}</span>
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex items-center justify-between text-xs text-jade-500">
+                                                    <div className="flex items-center space-x-1">
+                                                        <Calendar size={14} />
+                                                        <span>{poll.options.length} Options</span>
+                                                    </div>
+                                                    <div className="flex items-center space-x-1">
+                                                        <Clock size={14} />
+                                                        <span>{format(new Date(poll.created_at), 'MMM d')}</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
