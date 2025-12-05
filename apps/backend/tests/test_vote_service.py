@@ -1,44 +1,13 @@
-
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
-from sqlmodel.pool import StaticPool
+from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
-from main import app, get_current_user
 from models import User, Poll, PollOption, Vote
 from services.vote_service import VoteService
 from services.notification import NoOpNotificationService
 from datetime import datetime, timedelta
 
-# Setup in-memory database for testing
-@pytest.fixture(name="session")
-def session_fixture():
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
-
-@pytest.fixture(name="client")
-def client_fixture(session: Session):
-    def get_session_override():
-        return session
-
-    app.dependency_overrides[get_session_override] = lambda: session # This might fail if the dependency key is different.
-    # Actually, in main.py we use `session: Session = Depends(lambda: Session(engine))`
-    # and `user: User = Depends(get_current_user)`
-
-    # We need to override the specific dependency that `main.py` uses.
-    # Since `main.py` uses a lambda, we can't easily target it by function reference unless we extract it.
-    # However, FastAPI allows overriding by type if configured? No.
-    # Usually we extract the `get_session` function.
-
-    # Let's see if we can patch it or if we should refactor main.py lightly to be testable.
-    # For now, let's unit test the Service class directly, which is more robust for logic verification.
-    # Then we can integration test the API.
-
-    yield TestClient(app)
-    app.dependency_overrides.clear()
+# Note: Tests rely on the session fixture from conftest.py
 
 def test_cast_vote_creates_vote(session: Session):
     # Setup
