@@ -76,8 +76,35 @@ class PollService:
 
     def list_polls(self) -> List[Poll]:
         # Eager load options
-        statement = select(Poll).options(selectinload(Poll.options))
+        statement = select(Poll).options(
+            selectinload(Poll.options).selectinload(PollOption.votes).selectinload(Vote.user),
+            selectinload(Poll.creator)
+        )
         return self.session.exec(statement).all()
+
+    def add_poll_option(self, poll_id: int, option_create: PollOptionCreate, user: User) -> PollOption:
+        poll = self.get_poll(poll_id)
+        if poll.creator_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
+
+        db_option = PollOption(
+            poll_id=poll_id,
+            label=option_create.label,
+            start_time=option_create.start_time,
+            end_time=option_create.end_time
+        )
+        self.session.add(db_option)
+        self.session.commit()
+        self.session.refresh(db_option)
+        return db_option
+
+    def delete_poll(self, poll_id: int, user: User):
+        poll = self.get_poll(poll_id)
+        if poll.creator_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this poll")
+
+        self.session.delete(poll)
+        self.session.commit()
 
     def update_poll(self, poll_id: int, poll_update: PollUpdate, user: User) -> Poll:
         poll = self.get_poll(poll_id)

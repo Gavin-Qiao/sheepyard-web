@@ -9,4 +9,13 @@ if db_dir and not os.path.exists(db_dir):
 
 sqlite_url = f"sqlite:///{settings.DB_PATH}"
 connect_args = {"check_same_thread": False}
-engine = create_engine(sqlite_url, connect_args=connect_args)
+
+if settings.DB_PATH == ":memory:":
+    from sqlalchemy.pool import StaticPool
+    engine = create_engine(
+        sqlite_url,
+        connect_args=connect_args,
+        poolclass=StaticPool
+    )
+else:
+    engine = create_engine(sqlite_url, connect_args=connect_args)

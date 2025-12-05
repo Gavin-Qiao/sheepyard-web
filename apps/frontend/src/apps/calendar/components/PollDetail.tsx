@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { Check, Loader2, User as UserIcon, Edit2, X, Trash2, Save } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -55,6 +55,7 @@ interface PollWithVotes extends PollDetailData {
 
 const PollDetail: React.FC = () => {
     const { pollId } = useParams();
+    const navigate = useNavigate();
     const [poll, setPoll] = useState<PollWithVotes | null>(null);
     const [currentUser, setCurrentUser] = useState<User | null>(null); // To highlight own votes
     const [loading, setLoading] = useState(true);
@@ -64,6 +65,10 @@ const PollDetail: React.FC = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<{ title: string; description: string }>({ title: '', description: '' });
     const [processingEdit, setProcessingEdit] = useState(false);
+
+    // New Option State
+    const [newOption, setNewOption] = useState<{ label: string; start_time: string; end_time: string }>({ label: '', start_time: '', end_time: '' });
+    const [addingOption, setAddingOption] = useState(false);
 
     // Fetch Current User
     useEffect(() => {
@@ -133,6 +138,47 @@ const PollDetail: React.FC = () => {
             alert('Failed to update poll.');
         } finally {
             setProcessingEdit(false);
+        }
+    };
+
+    const handleDeletePoll = async () => {
+        if (!pollId) return;
+        if (!confirm('Are you sure you want to delete this ENTIRE event? This action cannot be undone.')) return;
+
+        try {
+            const res = await fetch(`/api/polls/${pollId}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete poll');
+            // Redirect to list
+            navigate('..');
+        } catch (error) {
+            console.error(error);
+            alert('Failed to delete poll.');
+        }
+    };
+
+    const handleAddOption = async () => {
+        if (!pollId) return;
+        if (!newOption.label || !newOption.start_time || !newOption.end_time) {
+            alert("Please fill in all fields for the new option.");
+            return;
+        }
+        setAddingOption(true);
+        try {
+            const res = await fetch(`/api/polls/${pollId}/options`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newOption)
+            });
+            if (!res.ok) throw new Error('Failed to add option');
+
+            // Reset and refresh
+            setNewOption({ label: '', start_time: '', end_time: '' });
+            await fetchPoll();
+        } catch (error) {
+            console.error(error);
+            alert('Failed to add option.');
+        } finally {
+            setAddingOption(false);
         }
     };
 
@@ -206,6 +252,14 @@ const PollDetail: React.FC = () => {
                                          <X size={12} />
                                          <span>Cancel</span>
                                      </button>
+                                     <div className="flex-1"></div>
+                                     <button
+                                        onClick={handleDeletePoll}
+                                        className="flex items-center space-x-1 px-3 py-1 bg-red-100 text-red-600 rounded text-xs font-bold uppercase tracking-wider hover:bg-red-200 ml-auto"
+                                     >
+                                        <Trash2 size={12} />
+                                        <span>Delete Event</span>
+                                     </button>
                                 </div>
                             </div>
                         ) : (
@@ -241,8 +295,41 @@ const PollDetail: React.FC = () => {
                     {/* Header Row: Dates */}
                     <div className="flex border-b border-jade-200">
                         {/* Empty corner cell */}
-                        <div className="w-48 p-4 shrink-0 flex items-end justify-start bg-jade-50/50">
-                            <span className="text-xs font-bold text-jade-400 uppercase tracking-wider">Participants</span>
+                        <div className="w-48 p-4 shrink-0 flex flex-col justify-end bg-jade-50/50">
+                            {isEditing && (
+                                <div className="p-2 border-b border-jade-200 mb-2">
+                                     <div className="text-xs font-bold text-jade-600 mb-2">Add Time Slot</div>
+                                     <input
+                                        type="text"
+                                        placeholder="Label (e.g. Dinner)"
+                                        className="w-full text-xs p-1 mb-1 border rounded"
+                                        value={newOption.label}
+                                        onChange={e => setNewOption({...newOption, label: e.target.value})}
+                                     />
+                                     <input
+                                        type="datetime-local"
+                                        className="w-full text-xs p-1 mb-1 border rounded"
+                                        value={newOption.start_time}
+                                        onChange={e => setNewOption({...newOption, start_time: e.target.value})}
+                                     />
+                                     <input
+                                        type="datetime-local"
+                                        className="w-full text-xs p-1 mb-1 border rounded"
+                                        value={newOption.end_time}
+                                        onChange={e => setNewOption({...newOption, end_time: e.target.value})}
+                                     />
+                                     <button
+                                        onClick={handleAddOption}
+                                        disabled={addingOption}
+                                        className="w-full bg-jade-500 text-white text-xs py-1 rounded hover:bg-jade-600 disabled:opacity-50"
+                                     >
+                                         {addingOption ? 'Adding...' : 'Add'}
+                                     </button>
+                                </div>
+                            )}
+                            <div className="p-4">
+                                <span className="text-xs font-bold text-jade-400 uppercase tracking-wider">Participants</span>
+                            </div>
                         </div>
 
                         {/* Options */}
@@ -256,6 +343,7 @@ const PollDetail: React.FC = () => {
                                     <span className="text-[10px] text-jade-500 font-medium">
                                         {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
                                     </span>
+                                    <span className="text-[10px] text-jade-400 truncate w-full">{option.label}</span>
 
                                     {isEditing && (
                                         <button
