@@ -3,19 +3,19 @@ from sqlmodel import Session
 from typing import List
 
 from models import User
-from schemas import PollCreate, PollRead, PollReadWithDetails, PollUpdate
+from schemas import PollCreate, PollRead, PollReadWithDetails, PollUpdate, PollOptionCreate, PollOptionRead
 from dependencies import get_session, get_current_user
 from services.poll_service import PollService
 from services.notification import NoOpNotificationService
 
 router = APIRouter()
 
-@router.get("/polls", response_model=List[PollRead])
+@router.get("/polls", response_model=List[PollReadWithDetails])
 def list_polls(
     session: Session = Depends(get_session)
 ):
     """
-    List all polls.
+    List all polls with details.
     """
     poll_service = PollService(session)
     return poll_service.list_polls()
@@ -56,6 +56,32 @@ def update_poll(
     """
     poll_service = PollService(session)
     return poll_service.update_poll(poll_id, poll_update, user)
+
+@router.delete("/polls/{poll_id}")
+def delete_poll(
+    poll_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Delete a poll.
+    """
+    poll_service = PollService(session)
+    poll_service.delete_poll(poll_id, user)
+    return {"ok": True}
+
+@router.post("/polls/{poll_id}/options", response_model=PollOptionRead)
+def add_poll_option(
+    poll_id: int,
+    option_data: PollOptionCreate,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Add a new option to a poll.
+    """
+    poll_service = PollService(session)
+    return poll_service.add_poll_option(poll_id, option_data, user)
 
 @router.delete("/polls/{poll_id}/options/{option_id}")
 def delete_poll_option(

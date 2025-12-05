@@ -1,11 +1,25 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Link } from 'react-router-dom';
+import { ZoomOut } from 'lucide-react';
+import CalendarYearView from './CalendarYearView';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
+}
+
+interface User {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar_url?: string;
+}
+
+interface Vote {
+  poll_option_id: number;
+  user: User;
 }
 
 interface PollOption {
@@ -13,12 +27,14 @@ interface PollOption {
   label: string;
   start_time: string;
   end_time: string;
+  votes?: Vote[];
 }
 
 interface Poll {
   id: number;
   title: string;
   description?: string;
+  creator?: User;
   creator_id: number;
   created_at: string;
   options: PollOption[];
@@ -29,11 +45,37 @@ interface CalendarMonthViewProps {
 }
 
 const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
-    // Current date for initial view. For a robust app, we might want to navigate months.
-    // For now, let's assume we show the current month or maybe the month of the latest poll?
-    // Let's stick to current system month.
     const today = new Date();
     const [currentDate, setCurrentDate] = React.useState(today);
+    const [viewMode, setViewMode] = React.useState<'month' | 'year'>('month');
+
+    // Handle initial wheel event for zoom out
+    useEffect(() => {
+        const handleWheel = (e: WheelEvent) => {
+             if (e.ctrlKey && e.deltaY > 0 && viewMode === 'month') {
+                 setViewMode('year');
+             }
+        };
+        // We might want to attach this to a specific container reference instead of window
+        // But for global feel:
+        window.addEventListener('wheel', handleWheel);
+        return () => window.removeEventListener('wheel', handleWheel);
+    }, [viewMode]);
+
+    if (viewMode === 'year') {
+        return (
+            <div className="relative">
+                <CalendarYearView
+                    polls={polls}
+                    currentDate={currentDate}
+                    onMonthSelect={(date) => {
+                        setCurrentDate(date);
+                        setViewMode('month');
+                    }}
+                />
+            </div>
+        );
+    }
 
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
@@ -43,10 +85,10 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
     const startDayOfWeek = monthStart.getDay(); // 0 = Sunday
     const paddingDays = Array(startDayOfWeek).fill(null);
 
-    // Group Polls by Date
-    // A poll appears on a date if it has an option on that date.
-    // We want to list unique polls per day.
-    const eventsByDate = new Map<string, Poll[]>();
+    // Group PollOptions by Date (NOT just polls)
+    // We want to show specific events (options) on the calendar.
+    // Map: 'yyyy-MM-dd' -> Array<{ poll: Poll, option: PollOption }>
+    const eventsByDate = new Map<string, Array<{ poll: Poll, option: PollOption }>>();
 
     polls.forEach(poll => {
         poll.options.forEach(opt => {
@@ -54,10 +96,7 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
             if (!eventsByDate.has(dateStr)) {
                 eventsByDate.set(dateStr, []);
             }
-            const existing = eventsByDate.get(dateStr)!;
-            if (!existing.some(p => p.id === poll.id)) {
-                existing.push(poll);
-            }
+            eventsByDate.get(dateStr)!.push({ poll, option: opt });
         });
     });
 
@@ -70,7 +109,15 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
     };
 
     return (
-        <div className="bg-white/60 backdrop-blur-md border border-jade-200 rounded-xl shadow-sm overflow-hidden p-6">
+        <div className="bg-white/60 backdrop-blur-md border border-jade-200 rounded-xl shadow-sm overflow-hidden p-6 relative">
+             <button
+                onClick={() => setViewMode('year')}
+                className="absolute top-6 right-24 p-2 text-jade-500 hover:text-jade-700 hover:bg-jade-100 rounded-full transition-colors"
+                title="Zoom Out to Year View"
+            >
+                <ZoomOut size={20} />
+            </button>
+
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-serif text-ink">{format(currentDate, 'MMMM yyyy')}</h2>
                 <div className="flex space-x-2">
@@ -96,20 +143,63 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                     const isToday = isSameDay(day, today);
 
                     return (
-                        <div key={dateStr} className={cn("bg-white h-32 p-2 flex flex-col group hover:bg-white/80 transition-colors", isToday && "bg-jade-50/30")}>
+                        <div key={dateStr} className={cn("bg-white h-32 p-1 flex flex-col group hover:bg-white/80 transition-colors", isToday && "bg-jade-50/30")}>
                             <span className={cn(
-                                "text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full mb-1",
-                                isToday ? "bg-jade-500 text-white" : "text-jade-700"
+                                "text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full mb-1 ml-auto",
+                                isToday ? "bg-jade-500 text-white" : "text-jade-400"
                             )}>
                                 {format(day, 'd')}
                             </span>
 
                             <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
-                                {dayEvents.map(poll => (
-                                    <Link to={`${poll.id}`} key={poll.id} className="block text-xs bg-jade-100/50 text-jade-800 p-1 rounded hover:bg-jade-200 transition-colors truncate border-l-2 border-jade-400">
-                                        {poll.title}
-                                    </Link>
-                                ))}
+                                {dayEvents.map(({ poll, option }) => {
+                                    // Collect unique voters for this option
+                                    // The backend structure for list polls might not include votes if I didn't verify it.
+                                    // I verified that I updated PollService to include votes.
+                                    // However, I need to make sure the Frontend Poll interface matches the response.
+                                    // The `Poll` interface above has `options: PollOption[]`. `PollOption` has `votes`.
+
+                                    const voters = option.votes?.map(v => v.user) || [];
+                                    const creator = poll.creator;
+
+                                    return (
+                                        <Link
+                                            to={`${poll.id}`}
+                                            key={`${poll.id}-${option.id}`}
+                                            className="block text-[10px] bg-jade-50 border border-jade-100 p-1 rounded hover:bg-jade-100 transition-colors"
+                                        >
+                                            <div className="font-bold text-jade-800 truncate mb-1">{poll.title}</div>
+                                            <div className="flex items-center -space-x-1.5 overflow-hidden pb-0.5">
+                                                {/* Creator Icon */}
+                                                {creator && (
+                                                    <div className="relative z-20" title={`Creator: ${creator.display_name || creator.username}`}>
+                                                        {creator.avatar_url ? (
+                                                            <img src={creator.avatar_url} className="w-4 h-4 rounded-full ring-1 ring-white" />
+                                                        ) : (
+                                                            <div className="w-4 h-4 rounded-full bg-jade-600 text-white flex items-center justify-center text-[8px] ring-1 ring-white">
+                                                                {creator.username[0].toUpperCase()}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Voter Icons */}
+                                                {voters.map((voter, i) => (
+                                                    <div key={i} className="relative z-10" title={`Voter: ${voter.display_name || voter.username}`}>
+                                                        {voter.avatar_url ? (
+                                                             <img src={voter.avatar_url} className="w-4 h-4 rounded-full ring-1 ring-white" />
+                                                        ) : (
+                                                             <div className="w-4 h-4 rounded-full bg-jade-300 text-jade-800 flex items-center justify-center text-[8px] ring-1 ring-white">
+                                                                {voter.username[0].toUpperCase()}
+                                                             </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                {voters.length === 0 && !creator && <span className="text-jade-300 italic">No participants</span>}
+                                            </div>
+                                        </Link>
+                                    );
+                                })}
                             </div>
                         </div>
                     );
