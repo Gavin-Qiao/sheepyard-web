@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
-import { Check, Loader2, User as UserIcon } from 'lucide-react';
+import { Check, Loader2, User as UserIcon, Edit2, X, Trash2, Save } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -61,6 +61,10 @@ const PollDetail: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [togglingOptionId, setTogglingOptionId] = useState<number | null>(null);
 
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState<{ title: string; description: string }>({ title: '', description: '' });
+    const [processingEdit, setProcessingEdit] = useState(false);
+
     // Fetch Current User
     useEffect(() => {
         fetch('/api/users/me')
@@ -77,9 +81,8 @@ const PollDetail: React.FC = () => {
                 return res.json();
             })
             .then(data => {
-                // Process data to group votes by user if needed, or just use as is.
-                // Assuming data matches PollWithVotes structure for now.
                 setPoll(data);
+                setEditForm({ title: data.title, description: data.description || '' });
             })
             .catch(err => setError(err.message))
             .finally(() => setLoading(false));
@@ -112,6 +115,43 @@ const PollDetail: React.FC = () => {
         }
     };
 
+    const handleUpdatePoll = async () => {
+        if (!pollId) return;
+        setProcessingEdit(true);
+        try {
+             const res = await fetch(`/api/polls/${pollId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editForm)
+            });
+            if (!res.ok) throw new Error('Failed to update poll');
+
+            setIsEditing(false);
+            await fetchPoll();
+        } catch (error) {
+            console.error(error);
+            alert('Failed to update poll.');
+        } finally {
+            setProcessingEdit(false);
+        }
+    };
+
+    const handleDeleteOption = async (optionId: number) => {
+        if (!confirm('Are you sure you want to delete this option? All votes for it will be lost.')) return;
+        if (!pollId) return;
+
+        try {
+            const res = await fetch(`/api/polls/${pollId}/options/${optionId}`, {
+                method: 'DELETE',
+            });
+             if (!res.ok) throw new Error('Failed to delete option');
+             await fetchPoll();
+        } catch(error) {
+             console.error(error);
+             alert('Failed to delete option.');
+        }
+    };
+
     if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-jade-500" /></div>;
     if (error || !poll) return <div className="text-center py-12 text-red-400">Error: {error || 'Poll not found'}</div>;
 
@@ -130,12 +170,65 @@ const PollDetail: React.FC = () => {
             <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white/40 backdrop-blur-sm border-b border-jade-100 pb-6"
+                className="bg-white/40 backdrop-blur-sm border-b border-jade-100 pb-6 relative group"
             >
-                <h2 className="text-3xl font-serif text-ink mb-2">{poll.title}</h2>
-                {poll.description && (
-                    <p className="text-jade-700 font-sans text-sm max-w-2xl">{poll.description}</p>
-                )}
+                 <div className="flex justify-between items-start">
+                     <div className="flex-1 mr-4">
+                        {isEditing ? (
+                            <div className="space-y-3">
+                                <input
+                                    type="text"
+                                    value={editForm.title}
+                                    onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
+                                    className="w-full text-3xl font-serif text-ink bg-white/50 border border-jade-200 rounded p-2 focus:ring-2 focus:ring-jade-400 focus:outline-none"
+                                    placeholder="Event Title"
+                                />
+                                <textarea
+                                    value={editForm.description}
+                                    onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                                    className="w-full text-sm text-jade-700 bg-white/50 border border-jade-200 rounded p-2 focus:ring-2 focus:ring-jade-400 focus:outline-none"
+                                    placeholder="Description (optional)"
+                                    rows={2}
+                                />
+                                <div className="flex space-x-2">
+                                     <button
+                                        onClick={handleUpdatePoll}
+                                        disabled={processingEdit}
+                                        className="flex items-center space-x-1 px-3 py-1 bg-jade-600 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-jade-700 disabled:opacity-50"
+                                     >
+                                         {processingEdit ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                         <span>Save</span>
+                                     </button>
+                                     <button
+                                        onClick={() => setIsEditing(false)}
+                                        className="flex items-center space-x-1 px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-bold uppercase tracking-wider hover:bg-gray-300"
+                                     >
+                                         <X size={12} />
+                                         <span>Cancel</span>
+                                     </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <h2 className="text-3xl font-serif text-ink mb-2">{poll.title}</h2>
+                                {poll.description && (
+                                    <p className="text-jade-700 font-sans text-sm max-w-2xl whitespace-pre-line">{poll.description}</p>
+                                )}
+                            </>
+                        )}
+                     </div>
+
+                     {!isEditing && currentUser?.id === poll.creator.id && (
+                         <button
+                            onClick={() => setIsEditing(true)}
+                            className="p-2 text-jade-400 hover:text-jade-600 hover:bg-jade-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                            title="Edit Event"
+                         >
+                             <Edit2 size={18} />
+                         </button>
+                     )}
+                 </div>
+
                 <div className="flex items-center space-x-2 mt-4 text-xs text-jade-500 uppercase tracking-widest font-bold">
                     <span>Organized by {poll.creator?.display_name || poll.creator?.username || 'Unknown'}</span>
                 </div>
@@ -157,12 +250,22 @@ const PollDetail: React.FC = () => {
                              const start = parseISO(option.start_time);
                              const end = parseISO(option.end_time);
                              return (
-                                <div key={option.id} className="w-32 shrink-0 border-l border-jade-100 p-3 text-center flex flex-col justify-center bg-white/50">
+                                <div key={option.id} className="w-32 shrink-0 border-l border-jade-100 p-3 text-center flex flex-col justify-center bg-white/50 relative group">
                                     <span className="text-xs font-bold text-jade-600 uppercase mb-1">{format(start, 'MMM')}</span>
                                     <span className="text-xl font-serif text-ink font-bold mb-1">{format(start, 'd')}</span>
                                     <span className="text-[10px] text-jade-500 font-medium">
                                         {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
                                     </span>
+
+                                    {isEditing && (
+                                        <button
+                                            onClick={() => handleDeleteOption(option.id)}
+                                            className="absolute top-1 right-1 p-1 bg-red-100 text-red-500 rounded-full hover:bg-red-200 hover:text-red-700 transition-colors"
+                                            title="Delete Option"
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+                                    )}
                                 </div>
                              );
                         })}
@@ -170,12 +273,20 @@ const PollDetail: React.FC = () => {
 
                     {/* Current User Voting Row (Sticky or Top) */}
                     {currentUser && (
-                         <div className="flex border-b border-jade-200/50 bg-jade-50/30">
+                         <div className={cn(
+                             "flex border-b border-jade-200/50 bg-jade-50/30 relative",
+                             // Visual effect: highlight row with a subtle glow/border
+                             "after:absolute after:inset-0 after:border-2 after:border-jade-300/50 after:pointer-events-none after:rounded-lg after:shadow-sm"
+                         )}>
                             <div className="w-48 p-4 shrink-0 flex items-center space-x-3">
-                                <div className="w-8 h-8 rounded-full bg-jade-200 flex items-center justify-center text-jade-700 font-bold border border-jade-300">
-                                    You
-                                </div>
-                                <span className="text-sm font-bold text-ink">Your Vote</span>
+                                {currentUser.avatar_url ? (
+                                    <img src={currentUser.avatar_url} alt={currentUser.username} className="w-8 h-8 rounded-full border border-jade-300 shadow-sm" />
+                                ) : (
+                                    <div className="w-8 h-8 rounded-full bg-jade-200 flex items-center justify-center text-jade-700 font-bold border border-jade-300">
+                                        {currentUser.display_name?.[0] || currentUser.username[0]}
+                                    </div>
+                                )}
+                                <span className="text-sm font-bold text-ink truncate">{currentUser.display_name || currentUser.username}</span>
                             </div>
 
                             {poll.options.map(option => {

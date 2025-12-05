@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import Poll, PollOption, User, Vote
-from schemas import PollCreate, PollOptionCreate
+from schemas import PollCreate, PollOptionCreate, PollUpdate
 from services.notification import NotificationService, NoOpNotificationService
 import logging
 
@@ -78,3 +78,31 @@ class PollService:
         # Eager load options
         statement = select(Poll).options(selectinload(Poll.options))
         return self.session.exec(statement).all()
+
+    def update_poll(self, poll_id: int, poll_update: PollUpdate, user: User) -> Poll:
+        poll = self.get_poll(poll_id)
+        if poll.creator_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
+
+        poll.title = poll_update.title
+        poll.description = poll_update.description
+
+        self.session.add(poll)
+        self.session.commit()
+        self.session.refresh(poll)
+        return poll
+
+    def delete_poll_option(self, poll_id: int, option_id: int, user: User):
+        poll = self.get_poll(poll_id)
+        if poll.creator_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
+
+        option = self.session.get(PollOption, option_id)
+        if not option:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Option not found")
+
+        if option.poll_id != poll_id:
+             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Option does not belong to this poll")
+
+        self.session.delete(option)
+        self.session.commit()
