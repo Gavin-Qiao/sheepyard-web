@@ -3,7 +3,7 @@ from sqlmodel import Session
 from typing import List
 
 from models import User
-from schemas import PollCreate, PollRead, PollReadWithDetails
+from schemas import PollCreate, PollRead, PollReadWithDetails, PollUpdate
 from dependencies import get_session, get_current_user
 from services.poll_service import PollService
 from services.notification import NoOpNotificationService
@@ -43,3 +43,30 @@ def get_poll(
     """
     poll_service = PollService(session)
     return poll_service.get_poll(poll_id)
+
+@router.put("/polls/{poll_id}", response_model=PollRead)
+def update_poll(
+    poll_id: int,
+    poll_update: PollUpdate,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Update a poll's title and description.
+    """
+    poll_service = PollService(session)
+    return poll_service.update_poll(poll_id, poll_update, user)
+
+@router.delete("/polls/{poll_id}/options/{option_id}")
+def delete_poll_option(
+    poll_id: int,
+    option_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Delete a poll option.
+    """
+    poll_service = PollService(session)
+    poll_service.delete_poll_option(poll_id, option_id, user)
+    return {"ok": True}

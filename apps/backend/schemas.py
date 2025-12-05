@@ -31,6 +31,9 @@ class PollBase(SQLModel):
     title: str
     description: Optional[str] = None
 
+class PollUpdate(PollBase):
+    pass
+
 class PollCreate(PollBase):
     options: List[PollOptionCreate]
 
