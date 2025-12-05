@@ -6,6 +6,9 @@ from models import Poll, PollOption, User, Vote
 from schemas import PollCreate, PollOptionCreate, PollUpdate
 from services.notification import NotificationService, NoOpNotificationService
 import logging
+from dateutil import rrule
+from dateutil.parser import parse
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -14,35 +17,99 @@ class PollService:
         self.session = session
         self.notification_service = notification_service
 
+    def _generate_recurring_options(self, template_option: PollOptionCreate, pattern_str: str, end_date: Optional[datetime], start_date_override: Optional[datetime] = None) -> List[PollOption]:
+        """
+        Generates a list of PollOptions based on a recurrence pattern.
+        """
+        if not pattern_str:
+            return []
+
+        # Parse the template option to get duration and start time
+        start_dt = template_option.start_time
+        end_dt = template_option.end_time
+        duration = end_dt - start_dt
+
+        # If start_date_override is provided, we use it as the new DTSTART for the series generation
+        # This ensures that "modify series from date X" generates the sequence STARTING at X.
+        rrule_start = start_date_override if start_date_override else start_dt
+
+        try:
+            # Parse RRULE
+            rule = rrule.rrulestr(pattern_str, dtstart=rrule_start)
+
+            generated_starts = []
+
+            # Iterator with limit
+            MAX_INSTANCES = 365
+            count = 0
+
+            for dt in rule:
+                if end_date and dt > end_date:
+                    break
+
+                generated_starts.append(dt)
+                count += 1
+                if count >= MAX_INSTANCES:
+                    break
+
+            new_options = []
+            for dt in generated_starts:
+                new_options.append(PollOption(
+                    label=dt.strftime("%a, %b %d"), # Simple label
+                    start_time=dt,
+                    end_time=dt + duration
+                ))
+
+            return new_options
+
+        except Exception as e:
+            logger.error(f"Failed to parse recurrence rule: {e}")
+            return []
+
     def create_poll(self, poll_create: PollCreate, user: User) -> Poll:
         # Create Poll instance
         db_poll = Poll(
             title=poll_create.title,
             description=poll_create.description,
-            creator_id=user.id
+            creator_id=user.id,
+            is_recurring=poll_create.is_recurring,
+            recurrence_pattern=poll_create.recurrence_pattern,
+            recurrence_end_date=poll_create.recurrence_end_date
         )
-        self.session.add(db_poll)
-
-        # We need to flush to get the poll ID, OR we can rely on SQLAlchemy to handle relationships if we add options to the poll directly.
-        # But since PollOption has a foreign key `poll_id`, we can instantiate them with the relationship object if we want,
-        # or just add them to the session and let the flush handle it if we link them.
-        # However, SQLModel/SQLAlchemy is smarter.
-
-        # Method 1: Flush to get ID, then add options.
-        # Method 2: Use relationship. db_poll.options = [PollOption(...)]
-
-        # Let's use Method 2 for cleaner code and atomicity.
+        # Don't add to session yet, wait for options.
 
         options = []
-        for option in poll_create.options:
-            db_option = PollOption(
-                label=option.label,
-                start_time=option.start_time,
-                end_time=option.end_time
+
+        if poll_create.is_recurring and poll_create.recurrence_pattern:
+            # Generate options based on the first option as template
+            if not poll_create.options:
+                 raise HTTPException(status_code=400, detail="Recurring poll needs a template option")
+
+            template = poll_create.options[0]
+            generated_options = self._generate_recurring_options(
+                template,
+                poll_create.recurrence_pattern,
+                poll_create.recurrence_end_date
             )
-            # Link via relationship or we wait for db_poll.id
-            # If we append to db_poll.options, SQLAlchemy handles the FK.
-            options.append(db_option)
+
+            if not generated_options:
+                 if not poll_create.options:
+                     raise HTTPException(status_code=400, detail="Failed to generate recurring options")
+                 for opt in poll_create.options:
+                    options.append(PollOption(
+                        label=opt.label, start_time=opt.start_time, end_time=opt.end_time
+                    ))
+            else:
+                options = generated_options
+        else:
+            # Normal flow
+            for option in poll_create.options:
+                db_option = PollOption(
+                    label=option.label,
+                    start_time=option.start_time,
+                    end_time=option.end_time
+                )
+                options.append(db_option)
 
         db_poll.options = options
 
@@ -113,6 +180,52 @@ class PollService:
 
         poll.title = poll_update.title
         poll.description = poll_update.description
+
+        # Handle Series Update
+        if poll_update.recurrence_pattern and poll_update.apply_changes_from:
+            # User wants to modify the series from this date
+            cutoff = poll_update.apply_changes_from
+
+            # Update poll recurrence metadata
+            poll.is_recurring = True
+            poll.recurrence_pattern = poll_update.recurrence_pattern
+            if poll_update.recurrence_end_date:
+                poll.recurrence_end_date = poll_update.recurrence_end_date
+
+            # 1. Delete future options
+            # We need to manually query and delete them
+            future_options = [opt for opt in poll.options if opt.start_time >= cutoff]
+            for opt in future_options:
+                self.session.delete(opt)
+
+            # 2. Generate new options
+            if poll.options:
+                template_opt_model = poll.options[0]
+                # Convert to schema-like object
+                template = PollOptionCreate(
+                    label=template_opt_model.label,
+                    start_time=template_opt_model.start_time,
+                    end_time=template_opt_model.end_time
+                )
+            else:
+                 template = PollOptionCreate(
+                     label="Event",
+                     start_time=cutoff,
+                     end_time=cutoff + timedelta(hours=1)
+                 )
+
+            # Generate new options from cutoff
+            new_options_models = self._generate_recurring_options(
+                template,
+                poll.recurrence_pattern,
+                poll.recurrence_end_date,
+                start_date_override=cutoff
+            )
+
+            # Add new options
+            for opt in new_options_models:
+                opt.poll_id = poll.id
+                self.session.add(opt)
 
         self.session.add(poll)
         self.session.commit()

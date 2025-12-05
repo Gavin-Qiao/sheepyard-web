@@ -81,3 +81,4 @@ typing-inspection==0.4.2
     #   pydantic-settings
 uvicorn==0.38.0
     # via backend (apps/backend/pyproject.toml)
+python-dateutil>=2.8.2

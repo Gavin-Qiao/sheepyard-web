@@ -19,6 +19,11 @@ class Poll(SQLModel, table=True):
     creator_id: int = Field(foreign_key="user.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+    # Recurrence Fields
+    is_recurring: bool = Field(default=False)
+    recurrence_pattern: Optional[str] = None # JSON string or text description of rule
+    recurrence_end_date: Optional[datetime] = None
+
     creator: Optional[User] = Relationship(back_populates="polls")
     options: List["PollOption"] = Relationship(back_populates="poll", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
