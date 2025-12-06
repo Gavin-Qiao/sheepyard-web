@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { format, parseISO } from 'date-fns';
-import { Check, Loader2, User as UserIcon, Edit2, X, Trash2, Save } from 'lucide-react';
+import { format, parseISO, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns';
+import { Check, Loader2, User as UserIcon, Edit2, X, Trash2, Save, Calendar, List, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+
+import PollMonthView from './PollMonthView';
+import PollWeekView from './PollWeekView';
+import DatePicker from 'react-datepicker'; // For Edit Series date picker
+import "react-datepicker/dist/react-datepicker.css";
+import './datepicker-custom.css';
 
 // Helper for classes
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -37,12 +43,9 @@ interface PollDetailData {
   creator: User;
   created_at: string;
   options: PollOption[];
-  // NOTE: The API might return votes nested in options or separately.
-  // Assuming the API returns a structure where we can derive votes.
-  // Based on memory, "Voting acts as a toggle".
-  // If the current API structure is unknown, I will assume I need to fetch votes separately
-  // or that `options` contains `votes`.
-  // Let's assume options have a `votes` array for now, based on typical eager loading.
+  is_recurring: boolean;
+  recurrence_pattern?: string;
+  recurrence_end_date?: string;
 }
 
 interface OptionWithVotes extends PollOption {
@@ -61,10 +64,17 @@ const PollDetail: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [togglingOptionId, setTogglingOptionId] = useState<number | null>(null);
+    const [viewMode, setViewMode] = useState<'list' | 'month' | 'week'>('list');
+    const [currentDate, setCurrentDate] = useState(new Date()); // For Calendar Views
 
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<{ title: string; description: string }>({ title: '', description: '' });
     const [processingEdit, setProcessingEdit] = useState(false);
+
+    // Edit Series State
+    const [isEditingSeries, setIsEditingSeries] = useState(false);
+    const [editSeriesDate, setEditSeriesDate] = useState<Date>(new Date());
+    const [newPattern, setNewPattern] = useState<string>('WEEKLY'); // Simplified
 
     // New Option State
     const [newOption, setNewOption] = useState<{ label: string; start_time: string; end_time: string }>({ label: '', start_time: '', end_time: '' });
@@ -88,6 +98,13 @@ const PollDetail: React.FC = () => {
             .then(data => {
                 setPoll(data);
                 setEditForm({ title: data.title, description: data.description || '' });
+                // If options exist, set currentDate to start of first option?
+                if (data.options.length > 0) {
+                     // Check if there are future options?
+                     const future = data.options.find((o: PollOption) => parseISO(o.start_time) > new Date());
+                     if (future) setCurrentDate(parseISO(future.start_time));
+                     else setCurrentDate(parseISO(data.options[data.options.length - 1].start_time));
+                }
             })
             .catch(err => setError(err.message))
             .finally(() => setLoading(false));
@@ -136,6 +153,38 @@ const PollDetail: React.FC = () => {
         } catch (error) {
             console.error(error);
             alert('Failed to update poll.');
+        } finally {
+            setProcessingEdit(false);
+        }
+    };
+
+    const handleUpdateSeries = async () => {
+        if (!pollId) return;
+        if (!confirm(`Are you sure you want to change the schedule from ${format(editSeriesDate, 'MMM d')}? Future events will be regenerated.`)) return;
+
+        setProcessingEdit(true);
+        try {
+             // Construct RRULE based on simple selection for now
+             const rrule = `FREQ=${newPattern}`; // Simplify for MVP
+
+             const payload = {
+                 ...editForm,
+                 recurrence_pattern: rrule,
+                 apply_changes_from: editSeriesDate.toISOString()
+             };
+
+             const res = await fetch(`/api/polls/${pollId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error('Failed to update series');
+
+            setIsEditingSeries(false);
+            await fetchPoll();
+        } catch (error) {
+            console.error(error);
+            alert('Failed to update series.');
         } finally {
             setProcessingEdit(false);
         }
@@ -198,6 +247,23 @@ const PollDetail: React.FC = () => {
         }
     };
 
+    // Navigation handlers
+    const handleNext = () => {
+        if (viewMode === 'month') {
+            setCurrentDate(addMonths(currentDate, 1));
+        } else if (viewMode === 'week') {
+            setCurrentDate(addWeeks(currentDate, 1));
+        }
+    };
+
+    const handlePrev = () => {
+        if (viewMode === 'month') {
+            setCurrentDate(subMonths(currentDate, 1));
+        } else if (viewMode === 'week') {
+            setCurrentDate(subWeeks(currentDate, 1));
+        }
+    };
+
     if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-jade-500" /></div>;
     if (error || !poll) return <div className="text-center py-12 text-red-400">Error: {error || 'Poll not found'}</div>;
 
@@ -252,6 +318,17 @@ const PollDetail: React.FC = () => {
                                          <X size={12} />
                                          <span>Cancel</span>
                                      </button>
+
+                                     {poll.is_recurring && (
+                                         <button
+                                            onClick={() => setIsEditingSeries(true)}
+                                            className="flex items-center space-x-1 px-3 py-1 bg-jade-100 text-jade-600 rounded text-xs font-bold uppercase tracking-wider hover:bg-jade-200"
+                                         >
+                                            <Clock size={12} />
+                                            <span>Edit Series</span>
+                                         </button>
+                                     )}
+
                                      <div className="flex-1"></div>
                                      <button
                                         onClick={handleDeletePoll}
@@ -261,6 +338,50 @@ const PollDetail: React.FC = () => {
                                         <span>Delete Event</span>
                                      </button>
                                 </div>
+
+                                {isEditingSeries && (
+                                    <div className="mt-4 p-4 bg-jade-50 border border-jade-200 rounded-lg">
+                                        <h4 className="text-sm font-bold text-jade-800 mb-2">Modify Series</h4>
+                                        <div className="flex items-end gap-4">
+                                            <div>
+                                                <label className="text-xs text-jade-600 block mb-1">Effective Date</label>
+                                                <DatePicker
+                                                    selected={editSeriesDate}
+                                                    onChange={date => date && setEditSeriesDate(date)}
+                                                    className="w-full text-sm p-1 border rounded"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-jade-600 block mb-1">New Pattern</label>
+                                                <select
+                                                    value={newPattern}
+                                                    onChange={e => setNewPattern(e.target.value)}
+                                                    className="text-sm p-1.5 border rounded w-32"
+                                                >
+                                                    <option value="DAILY">Daily</option>
+                                                    <option value="WEEKLY">Weekly</option>
+                                                    <option value="MONTHLY">Monthly</option>
+                                                </select>
+                                            </div>
+                                            <button
+                                                onClick={handleUpdateSeries}
+                                                disabled={processingEdit}
+                                                className="bg-jade-600 text-white text-xs px-3 py-1.5 rounded hover:bg-jade-700"
+                                            >
+                                                Update Series
+                                            </button>
+                                            <button
+                                                onClick={() => setIsEditingSeries(false)}
+                                                className="text-gray-500 text-xs hover:text-gray-700"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] text-jade-500 mt-2">
+                                            Warning: This will delete all time slots starting from the selected date and regenerate them.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <>
@@ -285,10 +406,91 @@ const PollDetail: React.FC = () => {
 
                 <div className="flex items-center space-x-2 mt-4 text-xs text-jade-500 uppercase tracking-widest font-bold">
                     <span>Organized by {poll.creator?.display_name || poll.creator?.username || 'Unknown'}</span>
+                    {poll.is_recurring && (
+                         <>
+                            <span>•</span>
+                            <span className="flex items-center space-x-1">
+                                <Clock size={12} />
+                                <span>Recurring</span>
+                            </span>
+                         </>
+                    )}
                 </div>
             </motion.div>
 
-            {/* Doodle Table */}
+            {/* View Toggle */}
+            <div className="flex items-center justify-between">
+                <div className="flex space-x-1 bg-jade-50 p-1 rounded-lg w-fit">
+                    <button
+                        onClick={() => setViewMode('list')}
+                        className={cn(
+                            "p-2 rounded-md transition-all flex items-center space-x-2 text-xs font-bold uppercase tracking-wider",
+                            viewMode === 'list' ? "bg-white text-jade-600 shadow-sm" : "text-jade-400 hover:text-jade-600 hover:bg-jade-100"
+                        )}
+                    >
+                        <List size={16} />
+                        <span>List</span>
+                    </button>
+                    <button
+                        onClick={() => setViewMode('week')}
+                        className={cn(
+                            "p-2 rounded-md transition-all flex items-center space-x-2 text-xs font-bold uppercase tracking-wider",
+                            viewMode === 'week' ? "bg-white text-jade-600 shadow-sm" : "text-jade-400 hover:text-jade-600 hover:bg-jade-100"
+                        )}
+                    >
+                        <Clock size={16} /> {/* Using Clock icon for Weekly timeline feeling */}
+                        <span>Week</span>
+                    </button>
+                    <button
+                        onClick={() => setViewMode('month')}
+                        className={cn(
+                            "p-2 rounded-md transition-all flex items-center space-x-2 text-xs font-bold uppercase tracking-wider",
+                            viewMode === 'month' ? "bg-white text-jade-600 shadow-sm" : "text-jade-400 hover:text-jade-600 hover:bg-jade-100"
+                        )}
+                    >
+                        <Calendar size={16} />
+                        <span>Month</span>
+                    </button>
+                </div>
+
+                {/* Navigation for Month/Week views */}
+                {(viewMode === 'month' || viewMode === 'week') && (
+                    <div className="flex items-center space-x-2">
+                        <button onClick={handlePrev} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+                             <ChevronLeft size={20} />
+                        </button>
+                        <span className="text-sm font-bold text-ink w-32 text-center">
+                            {viewMode === 'month' ? format(currentDate, 'MMM yyyy') : format(currentDate, "'Week of' MMM d")}
+                        </span>
+                        <button onClick={handleNext} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+                             <ChevronRight size={20} />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Views */}
+            {viewMode === 'month' && (
+                <PollMonthView
+                    options={poll.options}
+                    currentDate={currentDate}
+                    onDateSelect={(date) => {
+                        // When clicking a day, switch to week view focused on that day?
+                        // Or just highlight?
+                        setCurrentDate(date);
+                        setViewMode('week');
+                    }}
+                />
+            )}
+
+            {viewMode === 'week' && (
+                <PollWeekView
+                    options={poll.options}
+                    currentDate={currentDate}
+                />
+            )}
+
+            {viewMode === 'list' && (
             <div className="overflow-x-auto pb-4">
                 <div className="min-w-max bg-white/60 backdrop-blur-md border border-jade-200 rounded-xl shadow-sm overflow-hidden">
 
@@ -457,6 +659,7 @@ const PollDetail: React.FC = () => {
 
                 </div>
             </div>
+            )}
         </div>
     );
 };

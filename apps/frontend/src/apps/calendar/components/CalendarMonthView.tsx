@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from 'date-fns';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Link } from 'react-router-dom';
-import { ZoomOut, Crown } from 'lucide-react';
+import { ZoomOut, Crown, Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import CalendarYearView from './CalendarYearView';
+import CalendarWeekView from './CalendarWeekView';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -47,7 +48,7 @@ interface CalendarMonthViewProps {
 const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
     const today = new Date();
     const [currentDate, setCurrentDate] = React.useState(today);
-    const [viewMode, setViewMode] = React.useState<'month' | 'year'>('month');
+    const [viewMode, setViewMode] = React.useState<'month' | 'year' | 'week'>('month');
 
     // Handle initial wheel event for zoom out
     useEffect(() => {
@@ -62,6 +63,22 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
         return () => window.removeEventListener('wheel', handleWheel);
     }, [viewMode]);
 
+    const nextMonth = () => {
+        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    };
+
+    const prevMonth = () => {
+        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    };
+
+    const nextWeek = () => {
+        setCurrentDate(addWeeks(currentDate, 1));
+    };
+
+    const prevWeek = () => {
+        setCurrentDate(subWeeks(currentDate, 1));
+    };
+
     if (viewMode === 'year') {
         return (
             <div className="relative">
@@ -75,6 +92,40 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                 />
             </div>
         );
+    }
+
+    if (viewMode === 'week') {
+         return (
+             <div className="relative">
+                 <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-serif text-ink">
+                        {format(currentDate, "'Week of' MMMM d, yyyy")}
+                    </h2>
+                    <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-1">
+                             <button onClick={prevWeek} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+                                <ChevronLeft size={20} />
+                             </button>
+                             <button onClick={nextWeek} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+                                <ChevronRight size={20} />
+                             </button>
+                        </div>
+
+                        <button
+                            onClick={() => setViewMode('month')}
+                            className="p-1 mr-2 text-jade-500 hover:text-jade-700 hover:bg-jade-100 rounded-full transition-colors flex items-center gap-1"
+                        >
+                            <Calendar size={16} />
+                            <span className="text-xs">Month View</span>
+                        </button>
+                    </div>
+                </div>
+                 <CalendarWeekView
+                    polls={polls}
+                    currentDate={currentDate}
+                 />
+             </div>
+         )
     }
 
     const monthStart = startOfMonth(currentDate);
@@ -100,14 +151,6 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
         });
     });
 
-    const nextMonth = () => {
-        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-    };
-
-    const prevMonth = () => {
-        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    };
-
     return (
         <div className="bg-white/60 backdrop-blur-md border border-jade-200 rounded-xl shadow-sm overflow-hidden p-6 relative">
             <div className="flex items-center justify-between mb-6">
@@ -120,6 +163,15 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                     >
                         <ZoomOut size={20} />
                     </button>
+
+                    <button
+                        onClick={() => setViewMode('week')}
+                        className="p-1 mr-2 text-jade-500 hover:text-jade-700 hover:bg-jade-100 rounded-full transition-colors"
+                        title="Switch to Week View"
+                    >
+                        <Clock size={20} />
+                    </button>
+
                     <button onClick={prevMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600">Prev</button>
                     <button onClick={nextMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600">Next</button>
                 </div>
@@ -209,20 +261,6 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                                                             )}
                                                         </div>
                                                     ))}
-                                                    {/* If creator voted but is not in otherVoters, we might want to indicate they voted.
-                                                        But usually the crown implies they are the "Owner".
-                                                        If the user requirement implies seeing *if* the creator voted, we might need a visual cue.
-                                                        "The creator of the pool can also vote for the pool. In that case, the creator and the voters are not distinguishable"
-                                                        This suggests we want to distinguish the creator from normal voters.
-                                                        The crown does that.
-                                                        If the creator voted, do we show them AGAIN in the right list?
-                                                        "Creator left-left aligned and the voter right aligned."
-                                                        I think separating them is enough. The crown shows they are creator.
-                                                        If they voted, they are a voter too.
-                                                        Maybe we keep them in the voters list if they voted?
-                                                        But then they appear twice?
-                                                        Let's just show other voters on the right.
-                                                     */}
                                                 </div>
 
                                                 {voters.length === 0 && !creator && <span className="text-jade-300 italic">No participants</span>}

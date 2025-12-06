@@ -32,21 +32,39 @@ class PollBase(SQLModel):
     description: Optional[str] = None
 
 class PollUpdate(PollBase):
-    pass
+    # Recurrence update fields
+    # If these are present, it implies a "Modify Series" action
+    recurrence_pattern: Optional[str] = None
+    recurrence_end_date: Optional[datetime] = None
+    apply_changes_from: Optional[datetime] = None # The cut-off date for modification
 
 class PollCreate(PollBase):
+    # Recurrence fields
+    is_recurring: bool = False
+    recurrence_pattern: Optional[str] = None
+    recurrence_end_date: Optional[datetime] = None
+
     options: List[PollOptionCreate]
 
     @validator("options")
-    def must_have_at_least_one_option(cls, v):
+    def must_have_at_least_one_option(cls, v, values):
+        # If it's recurring, options might be generated server-side, so options list might be the "template"
+        # The frontend will likely send one option as the template (time/duration) and the pattern.
+        # But for now let's keep it simple: if not recurring, need options.
+        # If recurring, we might only need the FIRST option to determine start time and duration.
         if not v:
-            raise ValueError("Poll must have at least one option")
+             # Check if we have recurrence info that could generate options?
+             # For now, enforce at least one option always.
+            raise ValueError("Poll must have at least one option (as template or explicit list)")
         return v
 
 class PollRead(PollBase):
     id: int
     creator_id: int
     created_at: datetime
+    is_recurring: bool
+    recurrence_pattern: Optional[str]
+    recurrence_end_date: Optional[datetime]
     options: List[PollOptionRead]
 
 class VoteCreate(SQLModel):

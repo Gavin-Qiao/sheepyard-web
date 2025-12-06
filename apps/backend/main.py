@@ -30,6 +30,28 @@ def create_db_and_tables():
             # Column likely exists
             print(f"Schema check: {e}")
 
+        # Migration for Recurrence fields
+        try:
+            conn.execute(text("ALTER TABLE poll ADD COLUMN is_recurring BOOLEAN DEFAULT 0"))
+            conn.commit()
+            print("Added is_recurring column to poll table.")
+        except Exception as e:
+             print(f"Schema check (is_recurring): {e}")
+
+        try:
+            conn.execute(text("ALTER TABLE poll ADD COLUMN recurrence_pattern VARCHAR"))
+            conn.commit()
+            print("Added recurrence_pattern column to poll table.")
+        except Exception as e:
+             print(f"Schema check (recurrence_pattern): {e}")
+
+        try:
+            conn.execute(text("ALTER TABLE poll ADD COLUMN recurrence_end_date TIMESTAMP"))
+            conn.commit()
+            print("Added recurrence_end_date column to poll table.")
+        except Exception as e:
+             print(f"Schema check (recurrence_end_date): {e}")
+
     print("Database tables created.")
 
 @app.on_event("startup")
