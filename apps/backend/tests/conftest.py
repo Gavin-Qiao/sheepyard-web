@@ -30,3 +30,19 @@ def test_user_fixture(session: Session) -> User:
     session.commit()
     session.refresh(user)
     return user
+
+@pytest.fixture(name="client")
+def client_fixture(session: Session) -> Generator:
+    from main import app
+    from dependencies import get_session
+    from fastapi.testclient import TestClient
+
+    def get_session_override():
+        return session
+
+    app.dependency_overrides[get_session] = get_session_override
+
+    with TestClient(app) as client:
+        yield client
+
+    app.dependency_overrides.clear()
