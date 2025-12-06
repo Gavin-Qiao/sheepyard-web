@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
+import ConfirmModal from './Modal';
 // Custom CSS wrapper for DatePicker to match aesthetic
 import './datepicker-custom.css';
 
@@ -50,6 +51,19 @@ const PollCreate: React.FC = () => {
         return d;
     });
 
+    // Modal state for recurring template replacement
+    const [modalConfig, setModalConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+    });
+
     const addOption = () => {
         if (!selectedDate) return;
 
@@ -59,13 +73,20 @@ const PollCreate: React.FC = () => {
         const end = new Date(selectedDate);
         end.setHours(endTime.getHours(), endTime.getMinutes());
 
+        // Helper to commit the option
+        const commitOption = () => {
+             setOptions([{ start_time: start, end_time: end }]);
+             setModalConfig(prev => ({ ...prev, isOpen: false }));
+        };
+
         // If creating recurring event, we only need ONE option as template.
-        // We clear others if this is the case? No, maybe allow multiple templates?
-        // Backend logic I wrote assumes: "if recurring, first option is template".
-        // UI should probably restrict to ONE option for Recurring Mode for simplicity.
         if (isRecurring && options.length > 0) {
-            if (!confirm("Recurring events use a single time slot as a template. Replace existing time?")) return;
-            setOptions([{ start_time: start, end_time: end }]);
+            setModalConfig({
+                isOpen: true,
+                title: "Replace Time Slot",
+                message: "Recurring events use a single time slot as a template. Do you want to replace the existing time?",
+                onConfirm: commitOption
+            });
             return;
         }
 
@@ -178,6 +199,15 @@ const PollCreate: React.FC = () => {
 
     return (
         <div className="max-w-2xl mx-auto">
+            <ConfirmModal
+                isOpen={modalConfig.isOpen}
+                onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={modalConfig.onConfirm}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                variant="warning"
+                confirmText="Replace"
+            />
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}

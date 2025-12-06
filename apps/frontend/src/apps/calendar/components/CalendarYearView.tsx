@@ -1,23 +1,24 @@
 import React from 'react';
 import { format, startOfYear, eachMonthOfInterval, endOfYear } from 'date-fns';
+import { parseUTCDate } from '../../../utils/dateUtils';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
+    return twMerge(clsx(inputs));
 }
 
 interface PollOption {
-  id: number;
-  label: string;
-  start_time: string;
-  end_time: string;
+    id: number;
+    label: string;
+    start_time: string;
+    end_time: string;
 }
 
 interface Poll {
-  id: number;
-  title: string;
-  options: PollOption[];
+    id: number;
+    title: string;
+    options: PollOption[];
 }
 
 interface CalendarYearViewProps {
@@ -37,8 +38,8 @@ const CalendarYearView: React.FC<CalendarYearViewProps> = ({ polls, onMonthSelec
     polls.forEach(poll => {
         poll.options.forEach(opt => {
             // Only count if option has start time
-            if(opt.start_time) {
-                const dateStr = format(new Date(opt.start_time), 'yyyy-MM-dd');
+            if (opt.start_time) {
+                const dateStr = format(parseUTCDate(opt.start_time), 'yyyy-MM-dd');
                 eventDensity.set(dateStr, (eventDensity.get(dateStr) || 0) + 1);
             }
         });
@@ -70,7 +71,7 @@ const CalendarYearView: React.FC<CalendarYearViewProps> = ({ polls, onMonthSelec
                         >
                             <h3 className="text-sm font-bold text-jade-800 mb-2">{format(month, 'MMMM')}</h3>
                             <div className="grid grid-cols-7 gap-1">
-                                {['S','M','T','W','T','F','S'].map(d => (
+                                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
                                     <div key={d} className="text-[10px] text-jade-400 text-center">{d}</div>
                                 ))}
                                 {/* Padding */}
@@ -91,7 +92,7 @@ const CalendarYearView: React.FC<CalendarYearViewProps> = ({ polls, onMonthSelec
                                                 getHeatmapColor(count)
                                             )}
                                         >
-                                           {/* Optional: Show day number if space permits, but for heatmap usually just color.
+                                            {/* Optional: Show day number if space permits, but for heatmap usually just color.
                                                Let's hide number for cleaner heatmap look or make it very small.
                                            */}
                                         </div>

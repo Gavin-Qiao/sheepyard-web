@@ -1,10 +1,11 @@
 import React from 'react';
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getDay } from 'date-fns';
+import { parseUTCDate } from '../../../utils/dateUtils';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
+    return twMerge(clsx(inputs));
 }
 
 interface Vote {
@@ -12,11 +13,11 @@ interface Vote {
 }
 
 interface PollOption {
-  id: number;
-  label: string;
-  start_time: string;
-  end_time: string;
-  votes: Vote[];
+    id: number;
+    label: string;
+    start_time: string;
+    end_time: string;
+    votes: Vote[];
 }
 
 interface PollMonthViewProps {
@@ -38,7 +39,7 @@ const PollMonthView: React.FC<PollMonthViewProps> = ({ options, currentDate, onD
     const eventsByDate = new Set<string>();
 
     options.forEach(opt => {
-        const dateStr = format(parseISO(opt.start_time), 'yyyy-MM-dd');
+        const dateStr = format(parseUTCDate(opt.start_time), 'yyyy-MM-dd');
         const count = opt.votes ? opt.votes.length : 0;
         votesByDate.set(dateStr, (votesByDate.get(dateStr) || 0) + count);
         eventsByDate.add(dateStr);
@@ -94,7 +95,7 @@ const PollMonthView: React.FC<PollMonthViewProps> = ({ options, currentDate, onD
                             )}
                             title={`${voteCount} votes`}
                         >
-                            <span className={cn("text-sm font-bold", voteCount > 0 && maxVotes > 0 && (voteCount/maxVotes) >= 0.5 ? "text-white" : "text-ink")}>
+                            <span className={cn("text-sm font-bold", voteCount > 0 && maxVotes > 0 && (voteCount / maxVotes) >= 0.5 ? "text-white" : "text-ink")}>
                                 {format(day, 'd')}
                             </span>
 
@@ -102,7 +103,7 @@ const PollMonthView: React.FC<PollMonthViewProps> = ({ options, currentDate, onD
                                 <div className="w-1.5 h-1.5 rounded-full bg-jade-400 mt-1" />
                             )}
                             {voteCount > 0 && (
-                                <span className={cn("text-[10px]", (voteCount/maxVotes) >= 0.5 ? "text-jade-100" : "text-jade-600")}>
+                                <span className={cn("text-[10px]", (voteCount / maxVotes) >= 0.5 ? "text-jade-100" : "text-jade-600")}>
                                     {voteCount} votes
                                 </span>
                             )}
