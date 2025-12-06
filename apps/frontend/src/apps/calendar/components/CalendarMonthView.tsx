@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from 'date-fns';
+import { parseUTCDate } from '../../../utils/dateUtils';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Link } from 'react-router-dom';
@@ -8,37 +9,37 @@ import CalendarYearView from './CalendarYearView';
 import CalendarWeekView from './CalendarWeekView';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
+    return twMerge(clsx(inputs));
 }
 
 interface User {
-  id: number;
-  username: string;
-  display_name: string;
-  avatar_url?: string;
+    id: number;
+    username: string;
+    display_name: string;
+    avatar_url?: string;
 }
 
 interface Vote {
-  poll_option_id: number;
-  user: User;
+    poll_option_id: number;
+    user: User;
 }
 
 interface PollOption {
-  id: number;
-  label: string;
-  start_time: string;
-  end_time: string;
-  votes?: Vote[];
+    id: number;
+    label: string;
+    start_time: string;
+    end_time: string;
+    votes?: Vote[];
 }
 
 interface Poll {
-  id: number;
-  title: string;
-  description?: string;
-  creator?: User;
-  creator_id: number;
-  created_at: string;
-  options: PollOption[];
+    id: number;
+    title: string;
+    description?: string;
+    creator?: User;
+    creator_id: number;
+    created_at: string;
+    options: PollOption[];
 }
 
 interface CalendarMonthViewProps {
@@ -53,9 +54,9 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
     // Handle initial wheel event for zoom out
     useEffect(() => {
         const handleWheel = (e: WheelEvent) => {
-             if (e.ctrlKey && e.deltaY > 0 && viewMode === 'month') {
-                 setViewMode('year');
-             }
+            if (e.ctrlKey && e.deltaY > 0 && viewMode === 'month') {
+                setViewMode('year');
+            }
         };
         // We might want to attach this to a specific container reference instead of window
         // But for global feel:
@@ -95,20 +96,20 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
     }
 
     if (viewMode === 'week') {
-         return (
-             <div className="relative">
-                 <div className="flex items-center justify-between mb-6">
+        return (
+            <div className="relative">
+                <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-serif text-ink">
                         {format(currentDate, "'Week of' MMMM d, yyyy")}
                     </h2>
                     <div className="flex items-center space-x-4">
                         <div className="flex items-center space-x-1">
-                             <button onClick={prevWeek} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+                            <button onClick={prevWeek} className="p-1 hover:bg-jade-100 rounded text-jade-600">
                                 <ChevronLeft size={20} />
-                             </button>
-                             <button onClick={nextWeek} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+                            </button>
+                            <button onClick={nextWeek} className="p-1 hover:bg-jade-100 rounded text-jade-600">
                                 <ChevronRight size={20} />
-                             </button>
+                            </button>
                         </div>
 
                         <button
@@ -120,12 +121,12 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                         </button>
                     </div>
                 </div>
-                 <CalendarWeekView
+                <CalendarWeekView
                     polls={polls}
                     currentDate={currentDate}
-                 />
-             </div>
-         )
+                />
+            </div>
+        )
     }
 
     const monthStart = startOfMonth(currentDate);
@@ -143,7 +144,7 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
 
     polls.forEach(poll => {
         poll.options.forEach(opt => {
-            const dateStr = format(parseISO(opt.start_time), 'yyyy-MM-dd');
+            const dateStr = format(parseUTCDate(opt.start_time), 'yyyy-MM-dd');
             if (!eventsByDate.has(dateStr)) {
                 eventsByDate.set(dateStr, []);
             }
@@ -156,7 +157,7 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-serif text-ink">{format(currentDate, 'MMMM yyyy')}</h2>
                 <div className="flex items-center space-x-2">
-                     <button
+                    <button
                         onClick={() => setViewMode('year')}
                         className="p-1 mr-2 text-jade-500 hover:text-jade-700 hover:bg-jade-100 rounded-full transition-colors"
                         title="Zoom Out to Year View"
@@ -185,7 +186,7 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                 ))}
 
                 {paddingDays.map((_, i) => (
-                     <div key={`pad-${i}`} className="bg-white/30 h-32" />
+                    <div key={`pad-${i}`} className="bg-white/30 h-32" />
                 ))}
 
                 {days.map(day => {
@@ -233,7 +234,7 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                                                 {creator && (
                                                     <div className="relative z-20 shrink-0" title={`Creator: ${creator.display_name || creator.username}`}>
                                                         <div className="relative">
-                                                             {creator.avatar_url ? (
+                                                            {creator.avatar_url ? (
                                                                 <img src={creator.avatar_url} className="w-4 h-4 rounded-full ring-1 ring-white" />
                                                             ) : (
                                                                 <div className="w-4 h-4 rounded-full bg-jade-600 text-white flex items-center justify-center text-[8px] ring-1 ring-white">
@@ -253,11 +254,11 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                                                     {otherVoters.map((voter, i) => (
                                                         <div key={i} className="relative z-10" title={`Voter: ${voter.display_name || voter.username}`}>
                                                             {voter.avatar_url ? (
-                                                                 <img src={voter.avatar_url} className="w-4 h-4 rounded-full ring-1 ring-white" />
+                                                                <img src={voter.avatar_url} className="w-4 h-4 rounded-full ring-1 ring-white" />
                                                             ) : (
-                                                                 <div className="w-4 h-4 rounded-full bg-jade-300 text-jade-800 flex items-center justify-center text-[8px] ring-1 ring-white">
+                                                                <div className="w-4 h-4 rounded-full bg-jade-300 text-jade-800 flex items-center justify-center text-[8px] ring-1 ring-white">
                                                                     {voter.username[0].toUpperCase()}
-                                                                 </div>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     ))}

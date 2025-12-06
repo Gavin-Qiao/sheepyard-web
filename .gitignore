@@ -55,3 +55,5 @@ caddy_config/
 *.swp
 
 .ssh/
+root.crt
+docker-compose.yml
