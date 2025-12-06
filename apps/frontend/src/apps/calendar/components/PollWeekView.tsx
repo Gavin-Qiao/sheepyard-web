@@ -52,6 +52,13 @@ const PollWeekView: React.FC<PollWeekViewProps> = ({ options, currentDate }) => 
         };
     }, []);
 
+    // Auto-scroll to 8am on mount
+    useEffect(() => {
+        if (containerRef.current) {
+            containerRef.current.scrollTop = 8 * hourHeight;
+        }
+    }, [hourHeight]); // Re-adjust if zoom changes, though simpler to just do on mount. But dynamic zoom might need re-centering? Let's just do it on mount/hourHeight change so it stays consistent.
+
     // Helper to calculate position
     const getEventStyle = (opt: PollOption) => {
         const start = parseISO(opt.start_time);
@@ -82,8 +89,8 @@ const PollWeekView: React.FC<PollWeekViewProps> = ({ options, currentDate }) => 
         <div className="bg-white/60 backdrop-blur-md border border-jade-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[600px]">
              {/* Header */}
              <div className="flex border-b border-jade-200 bg-jade-50/50">
-                 <div className="w-16 shrink-0 border-r border-jade-200 p-2 text-xs font-bold text-jade-400 flex items-center justify-center">
-                     GMT
+                 <div className="w-16 shrink-0 border-r border-jade-200 p-2 text-xs font-bold text-jade-400 flex items-center justify-center break-words text-center leading-tight">
+                     {Intl.DateTimeFormat().resolvedOptions().timeZone.split('/')[1] || 'Local'}
                  </div>
                  {weekDays.map(day => (
                      <div key={day.toString()} className={cn(

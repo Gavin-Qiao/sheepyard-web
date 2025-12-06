@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
+import ConfirmModal from './Modal';
 import PollMonthView from './PollMonthView';
 import PollWeekView from './PollWeekView';
 import DatePicker from 'react-datepicker'; // For Edit Series date picker
@@ -79,6 +80,21 @@ const PollDetail: React.FC = () => {
     // New Option State
     const [newOption, setNewOption] = useState<{ label: string; start_time: string; end_time: string }>({ label: '', start_time: '', end_time: '' });
     const [addingOption, setAddingOption] = useState(false);
+
+    // Modal State
+    const [modalConfig, setModalConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        variant?: 'danger' | 'warning' | 'info';
+        confirmText?: string;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+    });
 
     // Fetch Current User
     useEffect(() => {
@@ -160,49 +176,71 @@ const PollDetail: React.FC = () => {
 
     const handleUpdateSeries = async () => {
         if (!pollId) return;
-        if (!confirm(`Are you sure you want to change the schedule from ${format(editSeriesDate, 'MMM d')}? Future events will be regenerated.`)) return;
 
-        setProcessingEdit(true);
-        try {
-             // Construct RRULE based on simple selection for now
-             const rrule = `FREQ=${newPattern}`; // Simplify for MVP
+        const confirmUpdate = async () => {
+            setModalConfig(prev => ({ ...prev, isOpen: false }));
+            setProcessingEdit(true);
+            try {
+                 // Construct RRULE based on simple selection for now
+                 const rrule = `FREQ=${newPattern}`; // Simplify for MVP
 
-             const payload = {
-                 ...editForm,
-                 recurrence_pattern: rrule,
-                 apply_changes_from: editSeriesDate.toISOString()
-             };
+                 const payload = {
+                     ...editForm,
+                     recurrence_pattern: rrule,
+                     apply_changes_from: editSeriesDate.toISOString()
+                 };
 
-             const res = await fetch(`/api/polls/${pollId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error('Failed to update series');
+                 const res = await fetch(`/api/polls/${pollId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error('Failed to update series');
 
-            setIsEditingSeries(false);
-            await fetchPoll();
-        } catch (error) {
-            console.error(error);
-            alert('Failed to update series.');
-        } finally {
-            setProcessingEdit(false);
-        }
+                setIsEditingSeries(false);
+                await fetchPoll();
+            } catch (error) {
+                console.error(error);
+                alert('Failed to update series.');
+            } finally {
+                setProcessingEdit(false);
+            }
+        };
+
+        setModalConfig({
+            isOpen: true,
+            title: "Update Recurring Series",
+            message: `Are you sure you want to change the schedule from ${format(editSeriesDate, 'MMM d')}? Future events will be regenerated.`,
+            onConfirm: confirmUpdate,
+            variant: 'warning',
+            confirmText: "Update Series"
+        });
     };
 
     const handleDeletePoll = async () => {
         if (!pollId) return;
-        if (!confirm('Are you sure you want to delete this ENTIRE event? This action cannot be undone.')) return;
 
-        try {
-            const res = await fetch(`/api/polls/${pollId}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to delete poll');
-            // Redirect to list
-            navigate('..');
-        } catch (error) {
-            console.error(error);
-            alert('Failed to delete poll.');
-        }
+        const confirmDelete = async () => {
+            setModalConfig(prev => ({ ...prev, isOpen: false }));
+            try {
+                const res = await fetch(`/api/polls/${pollId}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Failed to delete poll');
+                // Redirect to list
+                navigate('..');
+            } catch (error) {
+                console.error(error);
+                alert('Failed to delete poll.');
+            }
+        };
+
+        setModalConfig({
+            isOpen: true,
+            title: "Delete Event",
+            message: 'Are you sure you want to delete this ENTIRE event? This action cannot be undone.',
+            onConfirm: confirmDelete,
+            variant: 'danger',
+            confirmText: "Delete Event"
+        });
     };
 
     const handleAddOption = async () => {
@@ -232,19 +270,30 @@ const PollDetail: React.FC = () => {
     };
 
     const handleDeleteOption = async (optionId: number) => {
-        if (!confirm('Are you sure you want to delete this option? All votes for it will be lost.')) return;
         if (!pollId) return;
 
-        try {
-            const res = await fetch(`/api/polls/${pollId}/options/${optionId}`, {
-                method: 'DELETE',
-            });
-             if (!res.ok) throw new Error('Failed to delete option');
-             await fetchPoll();
-        } catch(error) {
-             console.error(error);
-             alert('Failed to delete option.');
-        }
+        const confirmDelete = async () => {
+            setModalConfig(prev => ({ ...prev, isOpen: false }));
+            try {
+                const res = await fetch(`/api/polls/${pollId}/options/${optionId}`, {
+                    method: 'DELETE',
+                });
+                 if (!res.ok) throw new Error('Failed to delete option');
+                 await fetchPoll();
+            } catch(error) {
+                 console.error(error);
+                 alert('Failed to delete option.');
+            }
+        };
+
+        setModalConfig({
+            isOpen: true,
+            title: "Delete Time Slot",
+            message: 'Are you sure you want to delete this option? All votes for it will be lost.',
+            onConfirm: confirmDelete,
+            variant: 'danger',
+            confirmText: "Delete"
+        });
     };
 
     // Navigation handlers
@@ -278,6 +327,15 @@ const PollDetail: React.FC = () => {
 
     return (
         <div className="space-y-8">
+            <ConfirmModal
+                isOpen={modalConfig.isOpen}
+                onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={modalConfig.onConfirm}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                variant={modalConfig.variant}
+                confirmText={modalConfig.confirmText}
+            />
             {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -10 }}
