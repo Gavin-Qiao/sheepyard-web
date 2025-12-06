@@ -25,7 +25,7 @@ interface PollOption {
 interface Poll {
   id: number;
   title: string;
-  creator: User;
+  creator?: User;
   options: PollOption[];
 }
 
@@ -149,7 +149,7 @@ const CalendarWeekView: React.FC<CalendarWeekViewProps> = ({ polls, currentDate 
                                      >
                                          <div className="font-bold text-jade-700 truncate">{format(parseISO(opt.start_time), 'HH:mm')}</div>
                                          <div className="text-jade-800 font-bold truncate">{opt.poll.title}</div>
-                                         <div className="text-jade-500 truncate text-[9px]">by {opt.poll.creator.display_name || opt.poll.creator.username}</div>
+                                         <div className="text-jade-500 truncate text-[9px]">by {opt.poll.creator?.display_name || opt.poll.creator?.username || 'Unknown'}</div>
                                      </Link>
                                  ))}
                              </div>
