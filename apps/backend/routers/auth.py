@@ -1,57 +1,21 @@
 import httpx
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi import APIRouter, Depends, Response
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlmodel import Session, select
-from jose import jwt, JWTError
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import timedelta
 
 from config import settings
 from models import User
-from database import engine
+from dependencies import get_session, get_current_user
+from security import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 
 router = APIRouter()
-
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
-
-def get_session():
-    with Session(engine) as session:
-        yield session
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-def get_current_user(request: Request, session: Session = Depends(get_session)):
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-        discord_id: str = payload.get("sub")
-        if discord_id is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-    statement = select(User).where(User.discord_id == discord_id)
-    user = session.exec(statement).first()
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    return user
 
 @router.get("/auth/login")
 def login():
     return RedirectResponse(
-        f"https://discord.com/api/oauth2/authorize?client_id={settings.DISCORD_CLIENT_ID}&redirect_uri={quote(settings.DISCORD_REDIRECT_URI)}&response_type=code&scope=identify%20guilds"
+        f"https://discord.com/api/oauth2/authorize?client_id={settings.DISCORD_CLIENT_ID}&redirect_uri={quote(settings.DISCORD_REDIRECT_URI)}&response_type=code&scope=identify%20guilds%20guilds.members.read"
     )
 
 @router.get("/auth/callback")
@@ -91,6 +55,21 @@ def callback(code: str, response: Response, session: Session = Depends(get_sessi
         if not is_member:
             return HTMLResponse(content="<h1>Login Failed: You are not a member of the required Discord Server.</h1>", status_code=403)
 
+        # Get Guild Member Profile (Nickname)
+        member_response = client.get(
+            f"https://discord.com/api/users/@me/guilds/{settings.DISCORD_GUILD_ID}/member",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+
+        display_name = None
+        if member_response.status_code == 200:
+            member_data = member_response.json()
+            display_name = member_data.get("nick")
+
+        # Fallback to global display name or username if no nick
+        if not display_name:
+            display_name = user_data.get("global_name") or user_data.get("username")
+
         # Create or Update User
         discord_id = user_data["id"]
         username = user_data["username"]
@@ -100,10 +79,16 @@ def callback(code: str, response: Response, session: Session = Depends(get_sessi
         db_user = session.exec(statement).first()
 
         if not db_user:
-            db_user = User(discord_id=discord_id, username=username, avatar_url=avatar_url)
+            db_user = User(
+                discord_id=discord_id,
+                username=username,
+                display_name=display_name,
+                avatar_url=avatar_url
+            )
             session.add(db_user)
         else:
             db_user.username = username
+            db_user.display_name = display_name
             db_user.avatar_url = avatar_url
             session.add(db_user)
 
@@ -130,3 +115,8 @@ def callback(code: str, response: Response, session: Session = Depends(get_sessi
 @router.get("/users/me")
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.post("/auth/logout")
+def logout(response: Response):
+    response.delete_cookie(key="access_token", httponly=True, samesite="lax", secure=False)
+    return {"message": "Logged out successfully"}
