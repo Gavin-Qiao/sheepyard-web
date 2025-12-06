@@ -1,0 +1,35 @@
+name: Production Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute Deployment Script via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Navigate to the application directory
+            cd ~/sheepyard-web
+            
+            # Fetch the latest references from the remote repository
+            git fetch --all
+            
+            # Switch to the main branch to ensure production code is used
+            git checkout main
+            
+            # Pull the latest changes from the remote main branch
+            git pull origin main
+            
+            # Rebuild and restart the Docker containers in detached mode
+            docker compose up -d --build
+            
+            # Remove unused Docker images to free up disk space
+            docker image prune -f
