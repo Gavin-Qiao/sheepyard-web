@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     DISCORD_CLIENT_ID: str
     DISCORD_CLIENT_SECRET: str
     DISCORD_REDIRECT_URI: str
+    DISCORD_BOT_TOKEN: str
     DISCORD_GUILD_ID: str
     SECRET_KEY: str
     FRONTEND_URL: str = "http://localhost:5173"  # Default for local dev
