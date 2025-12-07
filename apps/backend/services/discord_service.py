@@ -42,20 +42,52 @@ class DiscordService:
             print(f"Error fetching channels: {e}")
             raise e
 
-    def send_poll_share_message(self, channel_id: str, poll: Poll, creator: User, frontend_url: str) -> Dict:
+    def get_guild_members(self, guild_id: str) -> List[Dict]:
+        """
+        Fetches members from the guild.
+        Note: This requires the GUILD_MEMBERS intent.
+        If not enabled, this might return only the bot or empty list depending on permissions.
+        """
+        url = f"{self.BASE_URL}/guilds/{guild_id}/members"
+        params = {"limit": 1000} # Fetch up to 1000 members
+
+        try:
+            with httpx.Client() as client:
+                response = client.get(url, headers=self.headers, params=params)
+                response.raise_for_status()
+                members = response.json()
+                
+                # Simplify member data for frontend
+                # We need id (user.id), username (user.username), generic name (user.global_name or nick)
+                formatted_members = []
+                for m in members:
+                    user = m.get("user", {})
+                    if user.get("bot"): continue # Skip bots
+                    
+                    display_name = m.get("nick") or user.get("global_name") or user.get("username")
+                    formatted_members.append({
+                        "id": user.get("id"),
+                        "username": user.get("username"),
+                        "display_name": display_name,
+                        "avatar": user.get("avatar")
+                    })
+                
+                return formatted_members
+
+        except httpx.HTTPStatusError as e:
+            print(f"Discord API Error: {e.response.text}")
+            raise e
+        except Exception as e:
+            print(f"Error fetching members: {e}")
+            raise e
+
+    def send_poll_share_message(self, channel_id: str, poll: Poll, creator: User, frontend_url: str, custom_message: Optional[str] = None) -> Dict:
         """
         Sends a rich embed message to the specified Discord channel.
         """
         url = f"{self.BASE_URL}/channels/{channel_id}/messages"
 
         # Construct Event Link
-        # Assuming the frontend route is /apps/calendar/events/:id
-        # We might need to adjust based on actual routing.
-        # Looking at PollDetail.tsx, it uses /apps/calendar/events/:pollId implicitly or similar?
-        # The user didn't specify the exact URL structure but based on "When a user creates a new event... share it...".
-        # I'll use the base FRONTEND_URL + /apps/calendar/events/{poll.id} as a safe guess.
-        # Actually, let's check how the frontend routes are defined.
-        # But for now, I'll stick to a standard pattern.
         event_link = f"{frontend_url}/apps/calendar/events/{poll.id}"
 
         description = poll.description
@@ -103,8 +135,10 @@ class DiscordService:
             "timestamp": datetime.utcnow().isoformat()
         }
 
+        content = custom_message if custom_message else "**New Event Shared!**"
+
         payload = {
-            "content": f"**New Event Shared!**",
+            "content": content,
             "embeds": [embed]
         }
 

@@ -13,6 +13,7 @@ router = APIRouter()
 class SharePollRequest(BaseModel):
     poll_id: int
     channel_id: str
+    custom_message: str = None
 
 @router.get("/discord/channels", response_model=List[Dict])
 def get_discord_channels(
@@ -25,6 +26,20 @@ def get_discord_channels(
     try:
         channels = discord_service.get_guild_channels(settings.DISCORD_GUILD_ID)
         return channels
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/discord/members", response_model=List[Dict])
+def get_discord_members(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Fetch list of members in the configured Discord Guild.
+    User must be authenticated.
+    """
+    try:
+        members = discord_service.get_guild_members(settings.DISCORD_GUILD_ID)
+        return members
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -61,7 +76,8 @@ def share_poll_to_discord(
             channel_id=share_request.channel_id,
             poll=poll,
             creator=poll.creator,
-            frontend_url=settings.FRONTEND_URL
+            frontend_url=settings.FRONTEND_URL,
+            custom_message=share_request.custom_message
         )
         return {"message": "Shared successfully", "discord_message_id": result.get("id")}
     except Exception as e:

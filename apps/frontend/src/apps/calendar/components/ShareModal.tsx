@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Loader2, Share2, AlertCircle, Hash, Check } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { MentionSelector } from './MentionSelector';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
     return twMerge(clsx(inputs));
@@ -30,14 +31,52 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, pollId, pollTi
     const [sharing, setSharing] = useState(false);
     const [success, setSuccess] = useState(false);
 
+    const [customMessage, setCustomMessage] = useState('');
+
+    const [mentionOpen, setMentionOpen] = useState(false);
+
+    // Store mapping of display_name -> id for substitution
+    const selectedMembersRef = useRef<Map<string, string>>(new Map());
+
     useEffect(() => {
         if (isOpen) {
             fetchChannels();
             setSuccess(false);
             setError(null);
             setSelectedChannelId(null);
+            setCustomMessage('');
+            setMentionOpen(false);
+            selectedMembersRef.current.clear();
         }
     }, [isOpen]);
+
+    const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const val = e.target.value;
+        setCustomMessage(val);
+        if (val.endsWith('@')) {
+            setMentionOpen(true);
+        }
+    };
+
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const handleMentionSelect = (member: any) => {
+        // Store the mapping
+        selectedMembersRef.current.set(member.display_name, member.id);
+
+        // Remove the trailing '@' if it exists before appending the mention name
+        setCustomMessage(prev => {
+            if (prev.endsWith('@')) {
+                return prev.slice(0, -1) + ` @${member.display_name} `;
+            }
+            return prev + ` @${member.display_name} `;
+        });
+        setMentionOpen(false);
+        // Defer focus slightly to ensure state updates
+        setTimeout(() => {
+            textareaRef.current?.focus();
+        }, 0);
+    };
 
     const fetchChannels = async () => {
         setLoading(true);
@@ -59,13 +98,25 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, pollId, pollTi
         if (!selectedChannelId) return;
         setSharing(true);
         setError(null);
+
+        let finalMessage = customMessage;
+        // Replace friendly names with Discord ID format <@ID>
+        selectedMembersRef.current.forEach((id, name) => {
+            // Use a regex to replace all occurrences of @name with <@id>
+            // We escape the name just in case it has special regex chars
+            const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`@${escapedName}\\b`, 'g');
+            finalMessage = finalMessage.replace(regex, `<@${id}>`);
+        });
+
         try {
             const res = await fetch('/api/discord/share', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     poll_id: pollId,
-                    channel_id: selectedChannelId
+                    channel_id: selectedChannelId,
+                    custom_message: finalMessage
                 })
             });
 
@@ -94,9 +145,9 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, pollId, pollTi
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-jade-100"
+                className="bg-white rounded-xl shadow-2xl max-w-md w-full border border-jade-100"
             >
-                <div className="bg-jade-50/50 p-4 border-b border-jade-100 flex justify-between items-center">
+                <div className="bg-jade-50/50 p-4 border-b border-jade-100 flex justify-between items-center rounded-t-xl">
                     <h3 className="text-lg font-serif text-ink font-bold flex items-center gap-2">
                         <Share2 size={20} className="text-jade-600" />
                         Share Event
@@ -120,7 +171,29 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, pollId, pollTi
                         </div>
                     ) : (
                         <>
-                            <p className="text-sm text-jade-700 mb-4">
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Message (Optional)
+                                </label>
+                                <div className="relative">
+                                    <textarea
+                                        ref={textareaRef}
+                                        value={customMessage}
+                                        onChange={handleMessageChange}
+                                        placeholder="Add a message... Type @ to mention"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-jade-500 focus:border-jade-500 text-sm min-h-[80px]"
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between mt-2">
+                                    <MentionSelector
+                                        onSelect={handleMentionSelect}
+                                        isOpen={mentionOpen}
+                                        onClose={() => setMentionOpen(false)}
+                                    />
+                                </div>
+                            </div>
+
+                            <p className="text-sm text-jade-700 mb-2">
                                 Select a Discord channel to share <strong>{pollTitle}</strong>.
                             </p>
 
@@ -170,7 +243,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, pollId, pollTi
                 </div>
 
                 {!success && (
-                    <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+                    <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 rounded-b-xl">
                         <button
                             onClick={onClose}
                             className="px-4 py-2 text-sm text-gray-600 font-medium hover:text-gray-800"
