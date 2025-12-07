@@ -46,7 +46,8 @@ data/
 
 # Caddy
 caddy_data/
-caddy_config/
+caddy_config
+config/caddy/Caddyfile
 
 # OS / IDE
 .DS_Store
