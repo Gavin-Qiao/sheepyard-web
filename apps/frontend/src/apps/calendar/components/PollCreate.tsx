@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from 'date-fns';
-import { Loader2, Save, Repeat, Bot } from 'lucide-react';
+import { Loader2, Save, Repeat, Bot, Bell, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 import ConfirmModal from './Modal';
 import WeeklyScheduler, { SchedulerEvent } from './WeeklyScheduler';
-// Custom CSS wrapper for DatePicker to match aesthetic
+import { MentionSelector } from './MentionSelector';
 import './datepicker-custom.css';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -20,6 +20,12 @@ function cn(...inputs: (string | undefined | null | false)[]) {
 interface PollOptionInput {
     start_time: Date;
     end_time: Date;
+}
+
+interface Channel {
+    id: string;
+    name: string;
+    position: number;
 }
 
 type RecurrenceType = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM' | 'AI';
@@ -39,6 +45,16 @@ const PollCreate: React.FC = () => {
     const [recurrenceCount, setRecurrenceCount] = useState<number>(4);
     const [customDays, setCustomDays] = useState<string[]>([]);
 
+    // Deadline State
+    const [enableDeadline, setEnableDeadline] = useState(false);
+    const [deadlineDate, setDeadlineDate] = useState<Date | null>(null);
+    const [deadlineOffset, setDeadlineOffset] = useState<number>(24); // Hours
+    const [deadlineOffsetUnit, setDeadlineOffsetUnit] = useState<'hours' | 'days'>('hours');
+    const [deadlineChannelId, setDeadlineChannelId] = useState<string>('');
+    const [deadlineMessage, setDeadlineMessage] = useState('The deadline has passed! Here is the plan:');
+    const [deadlineMentions, setDeadlineMentions] = useState<number[]>([]);
+    const [channels, setChannels] = useState<Channel[]>([]);
+
     // Scheduler State
     const [currentSchedulerDate, setCurrentSchedulerDate] = useState(new Date());
 
@@ -54,6 +70,14 @@ const PollCreate: React.FC = () => {
         message: '',
         onConfirm: () => { },
     });
+
+    useEffect(() => {
+        // Fetch channels for deadline
+        fetch('/api/discord/channels')
+            .then(res => res.json())
+            .then(data => setChannels(data))
+            .catch(err => console.error("Failed to fetch channels", err));
+    }, []);
 
     const handleAddEvent = (start: Date, end: Date) => {
         // If recurring, only one option allowed as template
@@ -106,6 +130,10 @@ const PollCreate: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!title.trim() || options.length === 0) return;
+        if (enableDeadline && !deadlineChannelId) {
+            alert("Please select a channel for notifications.");
+            return;
+        }
 
         setIsSubmitting(true);
         try {
@@ -139,6 +167,29 @@ const PollCreate: React.FC = () => {
                 }
             }
 
+            // Add Deadline Data
+            if (enableDeadline) {
+                payload.deadline_channel_id = deadlineChannelId;
+                payload.deadline_message = deadlineMessage;
+                payload.deadline_mention_ids = deadlineMentions;
+
+                if (isRecurring) {
+                    // Calculate total minutes
+                    const minutes = deadlineOffsetUnit === 'days' ? deadlineOffset * 24 * 60 : deadlineOffset * 60;
+                    payload.deadline_offset_minutes = minutes;
+                } else {
+                    if (deadlineDate) {
+                        payload.deadline_date = deadlineDate.toISOString();
+                    } else {
+                        // Default to now? or require it.
+                        // Let's assume if null, we disable?
+                        alert("Please select a deadline date.");
+                        setIsSubmitting(false);
+                        return;
+                    }
+                }
+            }
+
             const res = await fetch('/api/polls', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -146,6 +197,19 @@ const PollCreate: React.FC = () => {
             });
 
             if (!res.ok) throw new Error('Failed to create poll');
+
+            // Record mention history implicitly?
+            // The backend doesn't automatically do it on create, but we have an API for it or we rely on the `MentionService` being called manually.
+            // Actually, in our plan, we didn't hook `create_poll` to `record_mentions`.
+            // But usually mentions are recorded when sending messages.
+            // The deadline mentions will be used later.
+            // Let's call the mention record API now so they are ranked high immediately?
+            // Optional but good UX.
+            if (deadlineMentions.length > 0) {
+               // Fire and forget
+               // But we don't have a direct "record" endpoint exposed, we only have "send message" or implicit.
+               // It's fine. Ranking updates when they are actually mentioned/notified.
+            }
 
             navigate('../'); // Go back to list
         } catch (error) {
@@ -352,6 +416,101 @@ const PollCreate: React.FC = () => {
                                                 </div>
                                             </div>
                                         )}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    {/* Deadline Toggle */}
+                    <div className="border-t border-jade-100 pt-4">
+                        <div className="flex items-center justify-between mb-4">
+                             <label className="flex items-center space-x-2 text-sm font-medium text-jade-800 cursor-pointer">
+                                <div className={cn("w-10 h-6 rounded-full p-1 transition-colors duration-200", enableDeadline ? "bg-jade-500" : "bg-gray-300")}>
+                                    <div className={cn("w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200", enableDeadline ? "translate-x-4" : "translate-x-0")}></div>
+                                </div>
+                                <input type="checkbox" checked={enableDeadline} onChange={e => setEnableDeadline(e.target.checked)} className="hidden" />
+                                <span className="flex items-center space-x-1">
+                                    <Bell size={16} />
+                                    <span>Set Final Deadline</span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <AnimatePresence>
+                            {enableDeadline && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="bg-jade-50/50 rounded-lg p-4 border border-jade-100 space-y-4 mb-6">
+                                        <div>
+                                            <label className="block text-sm font-medium text-jade-800 mb-1">Notification Channel</label>
+                                            <select
+                                                value={deadlineChannelId}
+                                                onChange={(e) => setDeadlineChannelId(e.target.value)}
+                                                className="w-full px-3 py-2 rounded-lg border border-jade-200 bg-white text-sm"
+                                            >
+                                                <option value="">Select a Discord Channel...</option>
+                                                {channels.map(c => (
+                                                    <option key={c.id} value={c.id}>#{c.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-jade-800 mb-1">Deadline Time</label>
+                                            {isRecurring ? (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm text-jade-700">Notify</span>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={deadlineOffset}
+                                                        onChange={(e) => setDeadlineOffset(parseInt(e.target.value))}
+                                                        className="w-20 px-3 py-2 rounded-lg border border-jade-200 bg-white text-sm"
+                                                    />
+                                                    <select
+                                                        value={deadlineOffsetUnit}
+                                                        onChange={(e) => setDeadlineOffsetUnit(e.target.value as any)}
+                                                        className="px-3 py-2 rounded-lg border border-jade-200 bg-white text-sm"
+                                                    >
+                                                        <option value="hours">Hours</option>
+                                                        <option value="days">Days</option>
+                                                    </select>
+                                                    <span className="text-sm text-jade-700">before each event.</span>
+                                                </div>
+                                            ) : (
+                                                 <DatePicker
+                                                    selected={deadlineDate}
+                                                    onChange={(date) => setDeadlineDate(date)}
+                                                    showTimeSelect
+                                                    dateFormat="MMM d, yyyy h:mm aa"
+                                                    className="w-full px-3 py-2 rounded-lg border border-jade-200 bg-white text-sm"
+                                                    placeholderText="Select deadline date & time"
+                                                />
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-jade-800 mb-1">Notification Message</label>
+                                            <textarea
+                                                value={deadlineMessage}
+                                                onChange={(e) => setDeadlineMessage(e.target.value)}
+                                                className="w-full px-3 py-2 rounded-lg border border-jade-200 bg-white text-sm h-20"
+                                            />
+                                        </div>
+
+                                        <div>
+                                             <MentionSelector
+                                                label="Also mention:"
+                                                selectedUserIds={deadlineMentions}
+                                                onChange={setDeadlineMentions}
+                                             />
+                                             <p className="text-xs text-jade-500 mt-1">All voters will be automatically mentioned.</p>
+                                        </div>
                                     </div>
                                 </motion.div>
                             )}

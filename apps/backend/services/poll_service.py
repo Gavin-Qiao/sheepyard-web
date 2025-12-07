@@ -74,7 +74,14 @@ class PollService:
             creator_id=user.id,
             is_recurring=poll_create.is_recurring,
             recurrence_pattern=poll_create.recurrence_pattern,
-            recurrence_end_date=poll_create.recurrence_end_date
+            recurrence_end_date=poll_create.recurrence_end_date,
+
+            # Deadline fields
+            deadline_date=poll_create.deadline_date,
+            deadline_offset_minutes=poll_create.deadline_offset_minutes,
+            deadline_channel_id=poll_create.deadline_channel_id,
+            deadline_message=poll_create.deadline_message,
+            deadline_mention_ids=poll_create.deadline_mention_ids
         )
         # Don't add to session yet, wait for options.
 
@@ -180,6 +187,13 @@ class PollService:
 
         poll.title = poll_update.title
         poll.description = poll_update.description
+
+        # Update deadline fields
+        if poll_update.deadline_date: poll.deadline_date = poll_update.deadline_date
+        if poll_update.deadline_offset_minutes: poll.deadline_offset_minutes = poll_update.deadline_offset_minutes
+        if poll_update.deadline_channel_id: poll.deadline_channel_id = poll_update.deadline_channel_id
+        if poll_update.deadline_message: poll.deadline_message = poll_update.deadline_message
+        if poll_update.deadline_mention_ids: poll.deadline_mention_ids = poll_update.deadline_mention_ids
 
         # Handle Series Update
         if poll_update.recurrence_pattern and poll_update.apply_changes_from:

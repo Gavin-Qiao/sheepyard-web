@@ -1,19 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlmodel import Session, select
-from typing import List, Dict
+from typing import List, Dict, Optional
 from pydantic import BaseModel
 
 from config import settings
 from dependencies import get_session, get_current_user
 from models import User, Poll
 from services.discord_service import discord_service
+from services.mention_service import mention_service
 
 router = APIRouter()
 
 class SharePollRequest(BaseModel):
     poll_id: int
     channel_id: str
-    custom_message: str = None
+    custom_message: Optional[str] = None
+    mentioned_user_ids: Optional[List[int]] = None
 
 @router.get("/discord/channels", response_model=List[Dict])
 def get_discord_channels(
@@ -57,27 +59,19 @@ def share_poll_to_discord(
     if not poll:
         raise HTTPException(status_code=404, detail="Poll not found")
 
-    # We might want to ensure the current user has access to this poll,
-    # but currently all polls are public to authenticated users.
-
     try:
-        # We need to pass the creator. The poll.creator might not be eagerly loaded?
-        # SQLModel usually lazy loads unless configured.
-        # But we can access poll.creator if it was loaded or we can join.
-        # Let's ensure we have it.
-        if not poll.creator:
-             # Just in case, though it should be there if relationship is set up correctly
-             # and we are inside a session.
-             # Explicitly fetch if needed, or rely on lazy loading within session.
-             # Since 'session' is active, lazy loading should work.
-             pass
+        # Record mentions if any
+        if share_request.mentioned_user_ids:
+            mention_service.record_mentions(session, current_user.id, share_request.mentioned_user_ids)
 
         result = discord_service.send_poll_share_message(
             channel_id=share_request.channel_id,
             poll=poll,
             creator=poll.creator,
             frontend_url=settings.FRONTEND_URL,
-            custom_message=share_request.custom_message
+            custom_message=share_request.custom_message,
+            mentioned_user_ids=share_request.mentioned_user_ids,
+            db_session=session
         )
         return {"message": "Shared successfully", "discord_message_id": result.get("id")}
     except Exception as e:

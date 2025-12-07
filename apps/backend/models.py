@@ -1,6 +1,7 @@
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 from sqlmodel import Field, SQLModel, UniqueConstraint, Relationship
+from sqlalchemy import Column, JSON
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -11,6 +12,18 @@ class User(SQLModel, table=True):
 
     polls: List["Poll"] = Relationship(back_populates="creator")
     votes: List["Vote"] = Relationship(back_populates="user")
+    mentions_created: List["UserMention"] = Relationship(back_populates="creator", sa_relationship_kwargs={"foreign_keys": "UserMention.creator_id"})
+    mentions_received: List["UserMention"] = Relationship(back_populates="target_user", sa_relationship_kwargs={"foreign_keys": "UserMention.target_user_id"})
+
+class UserMention(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("creator_id", "target_user_id"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    creator_id: int = Field(foreign_key="user.id")
+    target_user_id: int = Field(foreign_key="user.id")
+    last_mentioned_at: datetime = Field(default_factory=datetime.utcnow)
+
+    creator: Optional[User] = Relationship(back_populates="mentions_created", sa_relationship_kwargs={"foreign_keys": "UserMention.creator_id"})
+    target_user: Optional[User] = Relationship(back_populates="mentions_received", sa_relationship_kwargs={"foreign_keys": "UserMention.target_user_id"})
 
 class Poll(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -24,6 +37,14 @@ class Poll(SQLModel, table=True):
     recurrence_pattern: Optional[str] = None # JSON string or text description of rule
     recurrence_end_date: Optional[datetime] = None
 
+    # Deadline Fields
+    deadline_date: Optional[datetime] = None # For one-time polls
+    deadline_offset_minutes: Optional[int] = None # For recurring polls
+    deadline_channel_id: Optional[str] = None
+    deadline_message: Optional[str] = None
+    deadline_mention_ids: List[int] = Field(default_factory=list, sa_column=Column(JSON)) # Store list of user IDs
+    deadline_notification_sent: bool = Field(default=False) # For one-time polls
+
     creator: Optional[User] = Relationship(back_populates="polls")
     options: List["PollOption"] = Relationship(back_populates="poll", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
@@ -33,6 +54,8 @@ class PollOption(SQLModel, table=True):
     label: str
     start_time: datetime
     end_time: datetime
+
+    notification_sent: bool = Field(default=False) # For recurring instances
 
     poll: Optional[Poll] = Relationship(back_populates="options")
     votes: List["Vote"] = Relationship(back_populates="poll_option", sa_relationship_kwargs={"cascade": "all, delete-orphan"})

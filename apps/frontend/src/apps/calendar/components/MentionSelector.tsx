@@ -1,164 +1,167 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, User as UserIcon } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { Check, ChevronsUpDown, X } from "lucide-react";
+import clsx from "clsx";
+import { Combobox } from "@headlessui/react";
 
-interface DiscordMember {
-    id: string;
-    username: string;
-    display_name: string;
-    avatar?: string;
+interface User {
+  id: number;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
 }
 
 interface MentionSelectorProps {
-    onSelect: (member: DiscordMember) => void;
-    isOpen?: boolean;
-    onClose?: () => void;
+  label?: string;
+  selectedUserIds: number[];
+  onChange: (ids: number[]) => void;
 }
 
-export const MentionSelector: React.FC<MentionSelectorProps> = ({ onSelect, isOpen: externalIsOpen, onClose }) => {
-    const [internalIsOpen, setInternalIsOpen] = useState(false);
-    const [members, setMembers] = useState<DiscordMember[]>([]);
-    const [search, setSearch] = useState('');
-    const [loading, setLoading] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
+export const MentionSelector: React.FC<MentionSelectorProps> = ({
+  label = "Mention Users",
+  selectedUserIds,
+  onChange,
+}) => {
+  const [query, setQuery] = useState("");
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-    const isEffectiveOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                if (externalIsOpen !== undefined && onClose) {
-                    onClose();
-                } else {
-                    setInternalIsOpen(false);
-                }
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [externalIsOpen, onClose]);
-
-    const fetchMembers = async () => {
-        if (members.length > 0) return;
-        setLoading(true);
-        try {
-            const res = await fetch('/api/discord/members');
-            if (res.ok) {
-                const data = await res.json();
-                setMembers(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch members', error);
-        } finally {
-            setLoading(false);
+  useEffect(() => {
+    // Fetch ranked users
+    const fetchUsers = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/users/ranked");
+        if (res.ok) {
+          const data = await res.json();
+          setUsers(data);
         }
+      } catch (err) {
+        console.error("Failed to fetch users", err);
+      } finally {
+        setIsLoading(false);
+      }
     };
+    fetchUsers();
+  }, []);
 
-    // Fetch members when opened
-    useEffect(() => {
-        if (isEffectiveOpen) {
-            fetchMembers();
-        }
-    }, [isEffectiveOpen]);
+  const filteredUsers =
+    query === ""
+      ? users
+      : users.filter((user) => {
+          const name = user.display_name || user.username;
+          return name.toLowerCase().includes(query.toLowerCase());
+        });
 
-    const handleFocus = () => {
-        if (externalIsOpen === undefined) {
-            setInternalIsOpen(true);
-        } else if (onClose) {
-            // If controlled, we might want to signal opening? 
-            // But usually parent controls this key.
-            // For the button click case:
-            // If controlled mode is used for the textarea, this button might confusingly conflict or just work parallel.
-            // Let's assume if controlled, the button calls a parent handler? 
-            // Or simpler: handleFocus forces internal open? 
-            // Let's stick to: if externalIsOpen is defined, we assume parent drives it. 
-            // But the button inside this component should probably trigger the parent?
-            // Actually, for simplicity, let's keep internal state for the BUTTON trigger 
-            // and just OR it with external.
-            // But then closing is tricky.
-        }
-        // Let's simplify: mixing controlled and uncontrolled is messy.
-        // We'll keep it as "Uncontrolled BUT triggered by prop" or separate them.
-        // Actually, let's just use effects.
-        setInternalIsOpen(true);
-        fetchMembers();
-    };
+  // Selected Users Objects
+  const selectedUsers = users.filter((u) => selectedUserIds.includes(u.id));
 
+  const toggleUser = (user: User) => {
+    if (selectedUserIds.includes(user.id)) {
+      onChange(selectedUserIds.filter((id) => id !== user.id));
+    } else {
+      onChange([...selectedUserIds, user.id]);
+    }
+  };
 
+  const removeUser = (id: number) => {
+    onChange(selectedUserIds.filter((uid) => uid !== id));
+  };
 
-    const filteredMembers = members.filter(member =>
-        member.display_name.toLowerCase().includes(search.toLowerCase()) ||
-        member.username.toLowerCase().includes(search.toLowerCase())
-    );
+  return (
+    <div className="w-full">
+      <label className="block text-sm font-medium text-ink/70 mb-1">{label}</label>
 
-    return (
-        <div className="relative" ref={containerRef}>
-            <button
-                type="button"
-                onClick={handleFocus}
-                className="text-xs text-jade-600 hover:text-jade-700 font-medium flex items-center gap-1"
-            >
-                @ Mention User
-            </button>
-
-            {(isEffectiveOpen) && (
-                <div className="absolute bottom-full left-0 mb-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden z-50">
-                    <div className="p-2 border-b border-gray-100">
-                        <div className="relative">
-                            <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="text"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search members..."
-                                autoFocus
-                                className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-jade-500"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="max-h-48 overflow-y-auto">
-                        {loading && members.length === 0 ? (
-                            <div className="p-4 text-center text-xs text-gray-400">Loading members...</div>
-                        ) : filteredMembers.length === 0 ? (
-                            <div className="p-4 text-center text-xs text-gray-400">No members found</div>
-                        ) : (
-                            filteredMembers.map(member => (
-                                <button
-                                    key={member.id}
-                                    onClick={() => {
-                                        onSelect(member);
-                                        if (onClose) onClose();
-                                        else setInternalIsOpen(false);
-                                        setSearch('');
-                                    }}
-                                    className="w-full text-left px-3 py-2 hover:bg-jade-50 flex items-center gap-2 transition-colors"
-                                >
-                                    {member.avatar ? (
-                                        <img
-                                            src={`https://cdn.discordapp.com/avatars/${member.id}/${member.avatar}.png?size=32`}
-                                            alt={member.username}
-                                            className="w-6 h-6 rounded-full"
-                                            onError={(e) => {
-                                                // Fallback if avatar fails
-                                                (e.target as HTMLImageElement).style.display = 'none';
-                                            }}
-                                        />
-                                    ) : (
-                                        <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-gray-400">
-                                            <UserIcon size={14} />
-                                        </div>
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-gray-800 truncate">{member.display_name}</div>
-                                        <div className="text-xs text-gray-500 truncate">@{member.username}</div>
-                                    </div>
-                                </button>
-                            ))
-                        )}
-                    </div>
-                </div>
+      {/* Selected Tags */}
+      <div className="flex flex-wrap gap-2 mb-2">
+        {selectedUsers.map((user) => (
+          <div
+            key={user.id}
+            className="flex items-center gap-1 bg-jade/10 text-jade-dark px-2 py-1 rounded-full text-sm border border-jade/20"
+          >
+            {user.avatar_url && (
+              <img
+                src={user.avatar_url}
+                alt=""
+                className="w-4 h-4 rounded-full"
+              />
             )}
+            <span>{user.display_name || user.username}</span>
+            <button
+              onClick={() => removeUser(user.id)}
+              className="hover:text-red-500 ml-1"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <Combobox value={selectedUserIds} onChange={() => {}} multiple>
+        <div className="relative mt-1">
+          <div className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left border border-ink/20 focus-within:ring-2 focus-within:ring-jade/50 focus-within:border-jade sm:text-sm">
+            <Combobox.Input
+              className="w-full border-none py-2 pl-3 pr-10 text-sm leading-5 text-ink focus:ring-0 outline-none"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search users to mention..."
+              displayValue={() => ""} // Clear input after selection usually, but here we just filter
+            />
+            <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
+              <ChevronsUpDown className="h-5 w-5 text-gray-400" aria-hidden="true" />
+            </Combobox.Button>
+          </div>
+          <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm z-50">
+            {filteredUsers.length === 0 && query !== "" ? (
+              <div className="relative cursor-default select-none py-2 px-4 text-gray-700">
+                Nothing found.
+              </div>
+            ) : (
+              filteredUsers.map((user) => (
+                <Combobox.Option
+                  key={user.id}
+                  className={({ active }) =>
+                    clsx(
+                      "relative cursor-default select-none py-2 pl-10 pr-4",
+                      active ? "bg-jade/10 text-jade-dark" : "text-gray-900"
+                    )
+                  }
+                  value={user.id}
+                  onClick={() => toggleUser(user)} // Handle click manually for toggle behavior
+                >
+                  {({ selected, active }) => (
+                    <>
+                      <div className="flex items-center gap-2">
+                        {user.avatar_url ? (
+                            <img src={user.avatar_url} className="w-6 h-6 rounded-full" />
+                        ) : (
+                            <div className="w-6 h-6 rounded-full bg-gray-200" />
+                        )}
+                        <span
+                          className={clsx(
+                            "block truncate",
+                            selectedUserIds.includes(user.id) ? "font-medium" : "font-normal"
+                          )}
+                        >
+                          {user.display_name || user.username}
+                        </span>
+                      </div>
+                      {selectedUserIds.includes(user.id) ? (
+                        <span
+                          className={clsx(
+                            "absolute inset-y-0 left-0 flex items-center pl-3",
+                            active ? "text-jade-dark" : "text-jade"
+                          )}
+                        >
+                          <Check className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                      ) : null}
+                    </>
+                  )}
+                </Combobox.Option>
+              ))
+            )}
+          </Combobox.Options>
         </div>
-    );
+      </Combobox>
+    </div>
+  );
 };
