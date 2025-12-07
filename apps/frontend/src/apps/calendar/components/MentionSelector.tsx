@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Check, ChevronsUpDown, X } from "lucide-react";
 import clsx from "clsx";
-import { Combobox } from "@headlessui/react";
+import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from "@headlessui/react";
 
 interface User {
   id: number;
@@ -23,12 +23,10 @@ export const MentionSelector: React.FC<MentionSelectorProps> = ({
 }) => {
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Fetch ranked users
     const fetchUsers = async () => {
-      setIsLoading(true);
       try {
         const res = await fetch("/api/users/ranked");
         if (res.ok) {
@@ -37,8 +35,6 @@ export const MentionSelector: React.FC<MentionSelectorProps> = ({
         }
       } catch (err) {
         console.error("Failed to fetch users", err);
-      } finally {
-        setIsLoading(false);
       }
     };
     fetchUsers();
@@ -48,9 +44,10 @@ export const MentionSelector: React.FC<MentionSelectorProps> = ({
     query === ""
       ? users
       : users.filter((user) => {
-          const name = user.display_name || user.username;
-          return name.toLowerCase().includes(query.toLowerCase());
-        });
+        const name = user.display_name || user.username;
+        const normalizedQuery = query.startsWith('@') ? query.slice(1) : query;
+        return name.toLowerCase().includes(normalizedQuery.toLowerCase());
+      });
 
   // Selected Users Objects
   const selectedUsers = users.filter((u) => selectedUserIds.includes(u.id));
@@ -96,29 +93,32 @@ export const MentionSelector: React.FC<MentionSelectorProps> = ({
         ))}
       </div>
 
-      <Combobox value={selectedUserIds} onChange={() => {}} multiple>
+      <Combobox value={selectedUserIds} onChange={() => { }} multiple>
         <div className="relative mt-1">
           <div className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left border border-ink/20 focus-within:ring-2 focus-within:ring-jade/50 focus-within:border-jade sm:text-sm">
-            <Combobox.Input
+            <ComboboxInput
               className="w-full border-none py-2 pl-3 pr-10 text-sm leading-5 text-ink focus:ring-0 outline-none"
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
               placeholder="Search users to mention..."
               displayValue={() => ""} // Clear input after selection usually, but here we just filter
             />
-            <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
+            <ComboboxButton className="absolute inset-y-0 right-0 flex items-center pr-2">
               <ChevronsUpDown className="h-5 w-5 text-gray-400" aria-hidden="true" />
-            </Combobox.Button>
+            </ComboboxButton>
           </div>
-          <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm z-50">
+          <ComboboxOptions
+            anchor="bottom start"
+            className="w-[var(--input-width)] max-h-60 overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm z-50"
+          >
             {filteredUsers.length === 0 && query !== "" ? (
               <div className="relative cursor-default select-none py-2 px-4 text-gray-700">
                 Nothing found.
               </div>
             ) : (
               filteredUsers.map((user) => (
-                <Combobox.Option
+                <ComboboxOption
                   key={user.id}
-                  className={({ active }) =>
+                  className={({ active }: { active: boolean }) =>
                     clsx(
                       "relative cursor-default select-none py-2 pl-10 pr-4",
                       active ? "bg-jade/10 text-jade-dark" : "text-gray-900"
@@ -127,13 +127,13 @@ export const MentionSelector: React.FC<MentionSelectorProps> = ({
                   value={user.id}
                   onClick={() => toggleUser(user)} // Handle click manually for toggle behavior
                 >
-                  {({ selected, active }) => (
+                  {({ active }: { active: boolean }) => (
                     <>
                       <div className="flex items-center gap-2">
                         {user.avatar_url ? (
-                            <img src={user.avatar_url} className="w-6 h-6 rounded-full" />
+                          <img src={user.avatar_url} className="w-6 h-6 rounded-full" />
                         ) : (
-                            <div className="w-6 h-6 rounded-full bg-gray-200" />
+                          <div className="w-6 h-6 rounded-full bg-gray-200" />
                         )}
                         <span
                           className={clsx(
@@ -156,10 +156,10 @@ export const MentionSelector: React.FC<MentionSelectorProps> = ({
                       ) : null}
                     </>
                   )}
-                </Combobox.Option>
+                </ComboboxOption>
               ))
             )}
-          </Combobox.Options>
+          </ComboboxOptions>
         </div>
       </Combobox>
     </div>

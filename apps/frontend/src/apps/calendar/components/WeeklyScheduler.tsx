@@ -35,6 +35,8 @@ interface WeeklySchedulerProps {
     onRemoveEvent?: (eventId: string | number) => void;
     isEditable?: boolean; // If true, allows adding/removing
     isReadOnly?: boolean; // If true, no interactions at all
+    deadline?: Date | null; // Deadline line to display
+    onDeadlineChange?: (date: Date) => void; // Callback when deadline is clicked/set
 }
 
 const DURATIONS = [
@@ -52,7 +54,9 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
     onAddEvent,
     onRemoveEvent,
     isEditable = false,
-    isReadOnly = false
+    isReadOnly = false,
+    deadline,
+    onDeadlineChange
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [hourHeight, setHourHeight] = useState(60);
@@ -99,27 +103,26 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
     };
 
     const handleGridClick = (day: Date, e: React.MouseEvent) => {
-        if (!isEditable || isReadOnly) return;
-
-        // const rect = (e.target as HTMLElement).getBoundingClientRect();
-        // const y = e.clientY - rect.top + (e.currentTarget as HTMLElement).scrollTop;
-        // Wait, the click is on the day column, relative to that column.
-        // We need to be careful. The click event target might be the column div.
-
-        // Actually, let's use the event native offset if possible or recalculate
-        // The column has `relative` positioning.
-        // `e.nativeEvent.offsetY` is relative to the target.
-        // If we click on an empty space (the column), offsetY is correct.
+        if (isReadOnly) return;
+        // If neither editable nor deadline mode, do nothing
+        if (!isEditable && !onDeadlineChange) return;
 
         const offsetY = e.nativeEvent.offsetY;
         const clickedHour = Math.floor(offsetY / hourHeight);
         const clickedMinutes = Math.floor((offsetY % hourHeight) / (hourHeight / 2)) * 30; // Snap to 30m
 
-        const start = setMinutes(setHours(day, clickedHour), clickedMinutes);
-        const end = addMinutes(start, selectedDuration);
+        const clickedTime = setMinutes(setHours(day, clickedHour), clickedMinutes);
 
-        if (onAddEvent) {
-            onAddEvent(start, end);
+        // Deadline mode: if onDeadlineChange is provided, prioritize it
+        if (onDeadlineChange) {
+            onDeadlineChange(clickedTime);
+            return;
+        }
+
+        // Event add mode
+        if (isEditable && onAddEvent) {
+            const end = addMinutes(clickedTime, selectedDuration);
+            onAddEvent(clickedTime, end);
         }
     };
 
@@ -261,9 +264,25 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
                                         )}
                                     </div>
                                 ))}
+
+                                {/* Deadline Line (Per Day) */}
+                                {deadline && isSameDay(day, deadline) && (
+                                    <div
+                                        className="absolute left-0 right-0 flex items-center pointer-events-none z-30"
+                                        style={{ top: `${(differenceInMinutes(deadline, startOfDay(deadline)) / 60) * hourHeight}px` }}
+                                    >
+                                        <div className="w-full h-0.5 bg-red-500 shadow-sm" />
+                                        <div className="absolute -left-1 -top-1.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow" />
+                                        <div className="absolute left-1 -top-5 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow whitespace-nowrap z-40">
+                                            Deadline: {format(deadline, 'h:mm a')}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
+
+
                 </div>
             </div>
         </div>

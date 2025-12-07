@@ -80,7 +80,7 @@ class DiscordService:
         url = f"{self.BASE_URL}/channels/{channel_id}/messages"
 
         # Construct Event Link
-        event_link = f"{frontend_url}/apps/calendar/events/{poll.id}"
+        event_link = f"{frontend_url.rstrip('/')}/apps/calendar/{poll.id}"
 
         description = poll.description
         if description and len(description) > 200:
@@ -90,7 +90,7 @@ class DiscordService:
              {
                 "name": "Organized by",
                 "value": creator.display_name or creator.username,
-                "inline": True
+                "inline": False
             }
         ]
 
@@ -109,17 +109,21 @@ class DiscordService:
              fields.insert(0, {
                  "name": "When",
                  "value": time_value,
-                 "inline": True
+                 "inline": False
              })
 
         embed = {
             "title": f"📅 {poll.title}",
             "description": description or "",
             "url": event_link,
-            "color": 0x4ade80,
+            "color": 0x00A86B,  # Jade color
             "fields": fields,
+            "thumbnail": {
+                "url": creator.avatar_url or ""
+            },
             "footer": {
-                "text": "SheepYard Calendar"
+                "text": "SheepYard Calendar",
+                "icon_url": "https://cdn.discordapp.com/emojis/123456789.png"  # Placeholder or ideally app icon
             },
             "timestamp": datetime.utcnow().isoformat()
         }
