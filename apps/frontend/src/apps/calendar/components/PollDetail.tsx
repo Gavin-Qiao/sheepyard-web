@@ -586,25 +586,25 @@ const PollDetail: React.FC = () => {
             {/* Views */}
             {viewMode === 'month' && (
                 <>
-                <div className="flex justify-between items-center mb-2">
-                     <button onClick={handlePrev} className="p-1 hover:bg-jade-100 rounded text-jade-600">
-                         <ChevronLeft size={20} />
-                     </button>
-                     <span className="text-sm font-bold text-ink w-32 text-center">
-                         {format(currentDate, 'MMM yyyy')}
-                     </span>
-                     <button onClick={handleNext} className="p-1 hover:bg-jade-100 rounded text-jade-600">
-                         <ChevronRight size={20} />
-                     </button>
-                </div>
-                <PollMonthView
-                    options={poll.options}
-                    currentDate={currentDate}
-                    onDateSelect={(date) => {
-                        setCurrentDate(date);
-                        setViewMode('week');
-                    }}
-                />
+                    <div className="flex justify-between items-center mb-2">
+                        <button onClick={handlePrev} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+                            <ChevronLeft size={20} />
+                        </button>
+                        <span className="text-sm font-bold text-ink w-32 text-center">
+                            {format(currentDate, 'MMM yyyy')}
+                        </span>
+                        <button onClick={handleNext} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
+                    <PollMonthView
+                        options={poll.options}
+                        currentDate={currentDate}
+                        onDateSelect={(date) => {
+                            setCurrentDate(date);
+                            setViewMode('week');
+                        }}
+                    />
                 </>
             )}
 
@@ -614,7 +614,7 @@ const PollDetail: React.FC = () => {
                         events={schedulerEvents}
                         currentDate={currentDate}
                         onDateChange={setCurrentDate}
-                        isEditable={isCreator}
+                        isEditable={isCreator && isEditing}
                         isReadOnly={!isCreator}
                         onAddEvent={handleAddOptionScheduler}
                         onRemoveEvent={handleDeleteOption}
