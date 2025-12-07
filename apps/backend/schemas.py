@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 from sqlmodel import SQLModel
 from pydantic import validator
@@ -31,6 +31,13 @@ class PollBase(SQLModel):
     title: str
     description: Optional[str] = None
 
+    # Deadline fields
+    deadline_date: Optional[datetime] = None
+    deadline_offset_minutes: Optional[int] = None
+    deadline_channel_id: Optional[str] = None
+    deadline_message: Optional[str] = None
+    deadline_mention_ids: Optional[List[int]] = None # Changed from JSON in DB to List[int] in Schema
+
 class PollUpdate(PollBase):
     # Recurrence update fields
     # If these are present, it implies a "Modify Series" action
@@ -48,13 +55,7 @@ class PollCreate(PollBase):
 
     @validator("options")
     def must_have_at_least_one_option(cls, v, values):
-        # If it's recurring, options might be generated server-side, so options list might be the "template"
-        # The frontend will likely send one option as the template (time/duration) and the pattern.
-        # But for now let's keep it simple: if not recurring, need options.
-        # If recurring, we might only need the FIRST option to determine start time and duration.
         if not v:
-             # Check if we have recurrence info that could generate options?
-             # For now, enforce at least one option always.
             raise ValueError("Poll must have at least one option (as template or explicit list)")
         return v
 
@@ -66,6 +67,9 @@ class PollRead(PollBase):
     recurrence_pattern: Optional[str]
     recurrence_end_date: Optional[datetime]
     options: List[PollOptionRead]
+
+    # Deadline fields explicitly in Read model if PollBase doesn't cover it properly due to inheritance details
+    # But PollBase has them now.
 
 class VoteCreate(SQLModel):
     poll_option_id: int
