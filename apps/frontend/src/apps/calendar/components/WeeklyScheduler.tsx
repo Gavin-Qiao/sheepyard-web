@@ -3,7 +3,7 @@ import { format, addDays, startOfWeek, isSameDay, differenceInMinutes, startOfDa
 import { parseISO } from 'date-fns';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { ChevronLeft, ChevronRight, Clock, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Helper for classes
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -101,8 +101,8 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
     const handleGridClick = (day: Date, e: React.MouseEvent) => {
         if (!isEditable || isReadOnly) return;
 
-        const rect = (e.target as HTMLElement).getBoundingClientRect();
-        const y = e.clientY - rect.top + (e.currentTarget as HTMLElement).scrollTop;
+        // const rect = (e.target as HTMLElement).getBoundingClientRect();
+        // const y = e.clientY - rect.top + (e.currentTarget as HTMLElement).scrollTop;
         // Wait, the click is on the day column, relative to that column.
         // We need to be careful. The click event target might be the column div.
 
@@ -201,7 +201,7 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
                 <div className="flex relative" style={{ height: hourHeight * 24 }}>
                     {/* Time Axis */}
                     <div className="w-16 shrink-0 border-r border-jade-100 bg-jade-50/20 text-xs text-jade-400 font-medium relative">
-                         {Array.from({ length: 24 }).map((_, i) => (
+                        {Array.from({ length: 24 }).map((_, i) => (
                             <div key={i} className="absolute w-full text-center border-t border-jade-50" style={{ top: i * hourHeight, height: hourHeight }}>
                                 <span className="-mt-2 block bg-white/50 px-1">{i}:00</span>
                             </div>
@@ -211,8 +211,8 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
                     {/* Columns */}
                     {weekDays.map(day => {
                         const dayEvents = weekEvents.filter(evt => {
-                             const start = typeof evt.start_time === 'string' ? parseUTCDate(evt.start_time) : evt.start_time;
-                             return isSameDay(start, day);
+                            const start = typeof evt.start_time === 'string' ? parseUTCDate(evt.start_time) : evt.start_time;
+                            return isSameDay(start, day);
                         });
 
                         return (
@@ -250,7 +250,7 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
                                         {/* Optional Delete Button overlay on hover for better UX than just right click */}
                                         {isEditable && (
                                             <div className="absolute top-0 right-0 p-1 opacity-0 hover:opacity-100 transition-opacity">
-                                                 {/* Using right click mainly as requested, but visual cue is good */}
+                                                {/* Using right click mainly as requested, but visual cue is good */}
                                             </div>
                                         )}
                                         {/* Display Votes Count if in data */}

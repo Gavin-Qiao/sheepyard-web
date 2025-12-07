@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
-import { format, isSameDay } from 'date-fns';
-import { Calendar, Clock, X, Loader2, Save, Repeat, Bot } from 'lucide-react';
+import { format } from 'date-fns';
+import { Loader2, Save, Repeat, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -14,12 +14,12 @@ import WeeklyScheduler, { SchedulerEvent } from './WeeklyScheduler';
 import './datepicker-custom.css';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
+    return twMerge(clsx(inputs));
 }
 
 interface PollOptionInput {
-  start_time: Date;
-  end_time: Date;
+    start_time: Date;
+    end_time: Date;
 }
 
 type RecurrenceType = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM' | 'AI';
@@ -52,7 +52,7 @@ const PollCreate: React.FC = () => {
         isOpen: false,
         title: '',
         message: '',
-        onConfirm: () => {},
+        onConfirm: () => { },
     });
 
     const handleAddEvent = (start: Date, end: Date) => {
@@ -77,7 +77,7 @@ const PollCreate: React.FC = () => {
         );
 
         if (!exists) {
-            setOptions([...options, { start_time: start, end_time: end }].sort((a,b) => a.start_time.getTime() - b.start_time.getTime()));
+            setOptions([...options, { start_time: start, end_time: end }].sort((a, b) => a.start_time.getTime() - b.start_time.getTime()));
         }
     };
 
@@ -97,7 +97,7 @@ const PollCreate: React.FC = () => {
         const parts = [`FREQ=${freq}`];
 
         if (recurrenceType === 'CUSTOM' && customDays.length > 0) {
-             parts.push(`BYDAY=${customDays.join(',')}`);
+            parts.push(`BYDAY=${customDays.join(',')}`);
         }
 
         return parts.join(';');
@@ -135,7 +135,7 @@ const PollCreate: React.FC = () => {
                 if (recurrenceEndMode === 'DATE' && recurrenceEndDate) {
                     payload.recurrence_end_date = recurrenceEndDate.toISOString();
                 } else if (recurrenceEndMode === 'COUNT') {
-                     payload.recurrence_pattern += `;COUNT=${recurrenceCount}`;
+                    payload.recurrence_pattern += `;COUNT=${recurrenceCount}`;
                 }
             }
 
@@ -214,7 +214,7 @@ const PollCreate: React.FC = () => {
                     </div>
 
                     {/* Recurrence Toggle */}
-                     <div className="border-t border-jade-100 pt-4">
+                    <div className="border-t border-jade-100 pt-4">
                         <div className="flex items-center justify-between mb-4">
                             <label className="flex items-center space-x-2 text-sm font-medium text-jade-800 cursor-pointer">
                                 <div className={cn("w-10 h-6 rounded-full p-1 transition-colors duration-200", isRecurring ? "bg-jade-500" : "bg-gray-300")}>
@@ -272,9 +272,9 @@ const PollCreate: React.FC = () => {
                                         </div>
 
                                         {recurrenceType === 'AI' && (
-                                             <div className="text-xs text-jade-600 italic bg-jade-100 p-2 rounded">
-                                                 AI Auto-Schedule is currently under construction. Please check back later!
-                                             </div>
+                                            <div className="text-xs text-jade-600 italic bg-jade-100 p-2 rounded">
+                                                AI Auto-Schedule is currently under construction. Please check back later!
+                                            </div>
                                         )}
 
                                         {recurrenceType === 'CUSTOM' && (
@@ -303,29 +303,29 @@ const PollCreate: React.FC = () => {
                                         {recurrenceType !== 'AI' && (
                                             <div className="flex items-end gap-4">
                                                 <div className="flex-1">
-                                                     <label className="text-xs font-bold text-jade-600 uppercase tracking-wider mb-2 block">Ends</label>
-                                                     <div className="flex items-center space-x-4">
-                                                         <label className="flex items-center space-x-2 text-sm text-ink cursor-pointer">
-                                                             <input
+                                                    <label className="text-xs font-bold text-jade-600 uppercase tracking-wider mb-2 block">Ends</label>
+                                                    <div className="flex items-center space-x-4">
+                                                        <label className="flex items-center space-x-2 text-sm text-ink cursor-pointer">
+                                                            <input
                                                                 type="radio"
                                                                 name="endMode"
                                                                 checked={recurrenceEndMode === 'DATE'}
                                                                 onChange={() => setRecurrenceEndMode('DATE')}
                                                                 className="text-jade-600 focus:ring-jade-500"
-                                                             />
-                                                             <span>On Date</span>
-                                                         </label>
-                                                         <label className="flex items-center space-x-2 text-sm text-ink cursor-pointer">
-                                                             <input
+                                                            />
+                                                            <span>On Date</span>
+                                                        </label>
+                                                        <label className="flex items-center space-x-2 text-sm text-ink cursor-pointer">
+                                                            <input
                                                                 type="radio"
                                                                 name="endMode"
                                                                 checked={recurrenceEndMode === 'COUNT'}
                                                                 onChange={() => setRecurrenceEndMode('COUNT')}
                                                                 className="text-jade-600 focus:ring-jade-500"
-                                                             />
-                                                             <span>After</span>
-                                                         </label>
-                                                     </div>
+                                                            />
+                                                            <span>After</span>
+                                                        </label>
+                                                    </div>
                                                 </div>
 
                                                 <div className="w-48">
@@ -356,7 +356,7 @@ const PollCreate: React.FC = () => {
                                 </motion.div>
                             )}
                         </AnimatePresence>
-                     </div>
+                    </div>
 
                     <div className="border-t border-jade-100 pt-6">
                         <label className="block text-sm font-medium text-jade-800 mb-4">
