@@ -10,7 +10,7 @@ import { twMerge } from 'tailwind-merge';
 import ConfirmModal from './Modal';
 import ShareModal from './ShareModal';
 import PollMonthView from './PollMonthView';
-import PollWeekView from './PollWeekView';
+import WeeklyScheduler, { SchedulerEvent } from './WeeklyScheduler'; // Replaced PollWeekView
 import DatePicker from 'react-datepicker'; // For Edit Series date picker
 import "react-datepicker/dist/react-datepicker.css";
 import './datepicker-custom.css';
@@ -67,7 +67,8 @@ const PollDetail: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [togglingOptionId, setTogglingOptionId] = useState<number | null>(null);
-    const [viewMode, setViewMode] = useState<'list' | 'month' | 'week'>('list');
+    // Default view mode is now 'week' (Calendar)
+    const [viewMode, setViewMode] = useState<'list' | 'month' | 'week'>('week');
     const [currentDate, setCurrentDate] = useState(new Date()); // For Calendar Views
 
     const [isEditing, setIsEditing] = useState(false);
@@ -79,7 +80,7 @@ const PollDetail: React.FC = () => {
     const [editSeriesDate, setEditSeriesDate] = useState<Date>(new Date());
     const [newPattern, setNewPattern] = useState<string>('WEEKLY'); // Simplified
 
-    // New Option State
+    // New Option State (for List view fallback)
     const [newOption, setNewOption] = useState<{ label: string; start_time: string; end_time: string }>({ label: '', start_time: '', end_time: '' });
     const [addingOption, setAddingOption] = useState(false);
 
@@ -248,7 +249,7 @@ const PollDetail: React.FC = () => {
         });
     };
 
-    const handleAddOption = async () => {
+    const handleAddOptionList = async () => {
         if (!pollId) return;
         if (!newOption.label || !newOption.start_time || !newOption.end_time) {
             alert("Please fill in all fields for the new option.");
@@ -256,10 +257,18 @@ const PollDetail: React.FC = () => {
         }
         setAddingOption(true);
         try {
+            // FIX: Convert datetime-local strings to ISO UTC strings
+            const start = new Date(newOption.start_time).toISOString();
+            const end = new Date(newOption.end_time).toISOString();
+
             const res = await fetch(`/api/polls/${pollId}/options`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newOption)
+                body: JSON.stringify({
+                    label: newOption.label,
+                    start_time: start,
+                    end_time: end
+                })
             });
             if (!res.ok) throw new Error('Failed to add option');
 
@@ -274,7 +283,27 @@ const PollDetail: React.FC = () => {
         }
     };
 
-    const handleDeleteOption = async (optionId: number) => {
+    const handleAddOptionScheduler = async (start: Date, end: Date) => {
+        if (!pollId) return;
+        try {
+            const res = await fetch(`/api/polls/${pollId}/options`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    label: format(start, 'EEE, MMM d'),
+                    start_time: start.toISOString(),
+                    end_time: end.toISOString()
+                })
+            });
+            if (!res.ok) throw new Error('Failed to add option');
+            await fetchPoll();
+        } catch (error) {
+            console.error(error);
+            alert('Failed to add option.');
+        }
+    };
+
+    const handleDeleteOption = async (optionId: number | string) => {
         if (!pollId) return;
 
         const confirmDelete = async () => {
@@ -329,6 +358,17 @@ const PollDetail: React.FC = () => {
         });
     });
     const voters = Array.from(allVotersMap.values());
+
+    const isCreator = currentUser?.id === poll.creator.id;
+
+    // Prepare scheduler events
+    const schedulerEvents: SchedulerEvent[] = poll.options.map(opt => ({
+        id: opt.id,
+        start_time: opt.start_time,
+        end_time: opt.end_time,
+        label: opt.label,
+        data: { votes: opt.votes } // Pass votes to scheduler
+    }));
 
     return (
         <div className="space-y-8">
@@ -464,7 +504,7 @@ const PollDetail: React.FC = () => {
                         )}
                     </div>
 
-                    {!isEditing && currentUser?.id === poll.creator.id && (
+                    {!isEditing && isCreator && (
                         <div className="flex items-center space-x-1">
                             <button
                                 onClick={() => setShareModalOpen(true)}
@@ -473,7 +513,7 @@ const PollDetail: React.FC = () => {
                             >
                                 <Share2 size={18} />
                             </button>
-                            {currentUser?.id === poll.creator.id && (
+                            {isCreator && (
                                 <button
                                     onClick={() => setIsEditing(true)}
                                     className="p-2 text-jade-400 hover:text-jade-600 hover:bg-jade-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
@@ -520,8 +560,8 @@ const PollDetail: React.FC = () => {
                             viewMode === 'week' ? "bg-white text-jade-600 shadow-sm" : "text-jade-400 hover:text-jade-600 hover:bg-jade-100"
                         )}
                     >
-                        <Clock size={16} /> {/* Using Clock icon for Weekly timeline feeling */}
-                        <span>Week</span>
+                        <Clock size={16} />
+                        <span>Calendar</span>
                     </button>
                     <button
                         onClick={() => setViewMode('month')}
@@ -538,38 +578,48 @@ const PollDetail: React.FC = () => {
                 {/* Navigation for Month/Week views */}
                 {(viewMode === 'month' || viewMode === 'week') && (
                     <div className="flex items-center space-x-2">
-                        <button onClick={handlePrev} className="p-1 hover:bg-jade-100 rounded text-jade-600">
-                            <ChevronLeft size={20} />
-                        </button>
-                        <span className="text-sm font-bold text-ink w-32 text-center">
-                            {viewMode === 'month' ? format(currentDate, 'MMM yyyy') : format(currentDate, "'Week of' MMM d")}
-                        </span>
-                        <button onClick={handleNext} className="p-1 hover:bg-jade-100 rounded text-jade-600">
-                            <ChevronRight size={20} />
-                        </button>
+                        {/* Only show navigation if NOT in week/editable mode to avoid clutter? No, keep it. */}
                     </div>
                 )}
             </div>
 
             {/* Views */}
             {viewMode === 'month' && (
+                <>
+                <div className="flex justify-between items-center mb-2">
+                     <button onClick={handlePrev} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+                         <ChevronLeft size={20} />
+                     </button>
+                     <span className="text-sm font-bold text-ink w-32 text-center">
+                         {format(currentDate, 'MMM yyyy')}
+                     </span>
+                     <button onClick={handleNext} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+                         <ChevronRight size={20} />
+                     </button>
+                </div>
                 <PollMonthView
                     options={poll.options}
                     currentDate={currentDate}
                     onDateSelect={(date) => {
-                        // When clicking a day, switch to week view focused on that day?
-                        // Or just highlight?
                         setCurrentDate(date);
                         setViewMode('week');
                     }}
                 />
+                </>
             )}
 
             {viewMode === 'week' && (
-                <PollWeekView
-                    options={poll.options}
-                    currentDate={currentDate}
-                />
+                <div className="h-[600px]">
+                    <WeeklyScheduler
+                        events={schedulerEvents}
+                        currentDate={currentDate}
+                        onDateChange={setCurrentDate}
+                        isEditable={isCreator}
+                        isReadOnly={!isCreator}
+                        onAddEvent={handleAddOptionScheduler}
+                        onRemoveEvent={handleDeleteOption}
+                    />
+                </div>
             )}
 
             {viewMode === 'list' && (
@@ -580,7 +630,7 @@ const PollDetail: React.FC = () => {
                         <div className="flex border-b border-jade-200">
                             {/* Empty corner cell */}
                             <div className="w-48 p-4 shrink-0 flex flex-col justify-end bg-jade-50/50">
-                                {isEditing && (
+                                {isCreator && isEditing && (
                                     <div className="p-2 border-b border-jade-200 mb-2">
                                         <div className="text-xs font-bold text-jade-600 mb-2">Add Time Slot</div>
                                         <input
@@ -603,7 +653,7 @@ const PollDetail: React.FC = () => {
                                             onChange={e => setNewOption({ ...newOption, end_time: e.target.value })}
                                         />
                                         <button
-                                            onClick={handleAddOption}
+                                            onClick={handleAddOptionList}
                                             disabled={addingOption}
                                             className="w-full bg-jade-500 text-white text-xs py-1 rounded hover:bg-jade-600 disabled:opacity-50"
                                         >
@@ -629,7 +679,7 @@ const PollDetail: React.FC = () => {
                                         </span>
                                         <span className="text-[10px] text-jade-400 truncate w-full">{option.label}</span>
 
-                                        {isEditing && (
+                                        {isCreator && isEditing && (
                                             <button
                                                 onClick={() => handleDeleteOption(option.id)}
                                                 className="absolute top-1 right-1 p-1 bg-red-100 text-red-500 rounded-full hover:bg-red-200 hover:text-red-700 transition-colors"

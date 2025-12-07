@@ -16,20 +16,70 @@ jobs:
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            # Stop script on first error
+            set -e
+
             # Navigate to the application directory
             cd ~/sheepyard-web
             
-            # Fetch the latest references from the remote repository
+            # --- STEP 1: PREPARE BACKUP ---
+            echo "📦 Creating temporary backup of server settings..."
+            mkdir -p /tmp/sheepyard_backup
+            
+            # Backup .env (Secrets)
+            if [ -f .env ]; then
+              cp .env /tmp/sheepyard_backup/.env
+            fi
+            
+            # Backup Caddyfile (Web Server Config)
+            if [ -f config/caddy/Caddyfile ]; then
+              cp config/caddy/Caddyfile /tmp/sheepyard_backup/Caddyfile
+            fi
+
+            # Backup Docker Settings (Orchestration Configs)
+            if [ -f docker-compose.yml ]; then
+              cp docker-compose.yml /tmp/sheepyard_backup/docker-compose.yml
+            fi
+            
+            # --- STEP 2: BRUSH SERVER (Force Sync) ---
+            echo "🧹 Brushing server to match Git repository..."
             git fetch --all
+            # WARNING: This deletes ALL local changes/untracked files
+            git reset --hard origin/main
             
-            # Switch to the main branch to ensure production code is used
-            git checkout main
+            # --- STEP 3: RESTORE SETTINGS ---
+            echo "♻️ Restoring server settings..."
             
-            # Pull the latest changes from the remote main branch
-            git pull origin main
+            # Restore .env
+            if [ -f /tmp/sheepyard_backup/.env ]; then
+              mv /tmp/sheepyard_backup/.env .env
+            fi
             
-            # Rebuild and restart the Docker containers in detached mode
+            # Restore Caddyfile
+            if [ -f /tmp/sheepyard_backup/Caddyfile ]; then
+              # Ensure directory exists just in case
+              mkdir -p config/caddy
+              mv /tmp/sheepyard_backup/Caddyfile config/caddy/Caddyfile
+            fi
+
+            # Restore Docker Settings
+            if [ -f /tmp/sheepyard_backup/docker-compose.yml ]; then
+              mv /tmp/sheepyard_backup/docker-compose.yml docker-compose.yml
+            fi
+            
+            if [ -f /tmp/sheepyard_backup/docker-compose.override.yml ]; then
+              mv /tmp/sheepyard_backup/docker-compose.override.yml docker-compose.override.yml
+            fi
+
+            # --- STEP 4: CLEANUP BACKUP ---
+            echo "🗑️ Deleting temporary backups..."
+            rm -rf /tmp/sheepyard_backup
+
+            # --- STEP 5: BUILD & DEPLOY ---
+            echo "🚀 Starting deployment..."
             docker compose up -d --build
             
-            # Remove unused Docker images to free up disk space
+            # Remove unused images to save space
             docker image prune -f
+            
+            echo "✅ Deployment successful!"
