@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
-import { format } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import { Calendar, Clock, X, Loader2, Save, Repeat, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 import ConfirmModal from './Modal';
+import WeeklyScheduler, { SchedulerEvent } from './WeeklyScheduler';
 // Custom CSS wrapper for DatePicker to match aesthetic
 import './datepicker-custom.css';
 
@@ -38,18 +39,8 @@ const PollCreate: React.FC = () => {
     const [recurrenceCount, setRecurrenceCount] = useState<number>(4);
     const [customDays, setCustomDays] = useState<string[]>([]);
 
-    // Temporary state for the date picker
-    const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
-    const [startTime, setStartTime] = useState<Date>(() => {
-        const d = new Date();
-        d.setHours(9, 0, 0, 0);
-        return d;
-    });
-    const [endTime, setEndTime] = useState<Date>(() => {
-        const d = new Date();
-        d.setHours(17, 0, 0, 0);
-        return d;
-    });
+    // Scheduler State
+    const [currentSchedulerDate, setCurrentSchedulerDate] = useState(new Date());
 
     // Modal state for recurring template replacement
     const [modalConfig, setModalConfig] = useState<{
@@ -64,33 +55,22 @@ const PollCreate: React.FC = () => {
         onConfirm: () => {},
     });
 
-    const addOption = () => {
-        if (!selectedDate) return;
-
-        const start = new Date(selectedDate);
-        start.setHours(startTime.getHours(), startTime.getMinutes());
-
-        const end = new Date(selectedDate);
-        end.setHours(endTime.getHours(), endTime.getMinutes());
-
-        // Helper to commit the option
-        const commitOption = () => {
-             setOptions([{ start_time: start, end_time: end }]);
-             setModalConfig(prev => ({ ...prev, isOpen: false }));
-        };
-
-        // If creating recurring event, we only need ONE option as template.
+    const handleAddEvent = (start: Date, end: Date) => {
+        // If recurring, only one option allowed as template
         if (isRecurring && options.length > 0) {
             setModalConfig({
                 isOpen: true,
                 title: "Replace Time Slot",
                 message: "Recurring events use a single time slot as a template. Do you want to replace the existing time?",
-                onConfirm: commitOption
+                onConfirm: () => {
+                    setOptions([{ start_time: start, end_time: end }]);
+                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                }
             });
             return;
         }
 
-        // Avoid duplicates (simple check)
+        // Avoid duplicates
         const exists = options.some(opt =>
             opt.start_time.getTime() === start.getTime() &&
             opt.end_time.getTime() === end.getTime()
@@ -101,7 +81,9 @@ const PollCreate: React.FC = () => {
         }
     };
 
-    const removeOption = (index: number) => {
+    const handleRemoveEvent = (eventId: string | number) => {
+        // Event ID is index in this simple case
+        const index = Number(eventId);
         setOptions(options.filter((_, i) => i !== index));
     };
 
@@ -117,14 +99,6 @@ const PollCreate: React.FC = () => {
         if (recurrenceType === 'CUSTOM' && customDays.length > 0) {
              parts.push(`BYDAY=${customDays.join(',')}`);
         }
-
-        // End condition is handled by explicit end_date sent to backend, or COUNT?
-        // Backend uses dateutil.rrule.rrulestr.
-        // I can send just FREQ part and handle end_date separately (as I did in schema).
-        // Or put UNTIL/COUNT in rrule.
-        // My backend logic: `create_poll` accepts `recurrence_end_date` AND `recurrence_pattern`.
-        // And `_generate_recurring_options` uses `recurrence_end_date` as a clamp.
-        // So `recurrence_pattern` should just be frequency/interval.
 
         return parts.join(';');
     };
@@ -161,13 +135,6 @@ const PollCreate: React.FC = () => {
                 if (recurrenceEndMode === 'DATE' && recurrenceEndDate) {
                     payload.recurrence_end_date = recurrenceEndDate.toISOString();
                 } else if (recurrenceEndMode === 'COUNT') {
-                     // For count, we can embed it in RRULE or calculate end date?
-                     // Backend logic supports explicit end_date field.
-                     // If I pass COUNT in pattern, dateutil handles it.
-                     // But my backend `_generate` function has a loop break.
-                     // Let's rely on backend loop break or update backend to respect COUNT in rrule.
-                     // Actually `rrule` object respects COUNT.
-                     // So I'll append COUNT to pattern if mode is COUNT.
                      payload.recurrence_pattern += `;COUNT=${recurrenceCount}`;
                 }
             }
@@ -197,8 +164,16 @@ const PollCreate: React.FC = () => {
         }
     };
 
+    // Convert options to SchedulerEvents
+    const schedulerEvents: SchedulerEvent[] = options.map((opt, idx) => ({
+        id: idx,
+        start_time: opt.start_time,
+        end_time: opt.end_time,
+        label: isRecurring ? 'Template' : 'Option',
+    }));
+
     return (
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto">
             <ConfirmModal
                 isOpen={modalConfig.isOpen}
                 onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
@@ -387,76 +362,21 @@ const PollCreate: React.FC = () => {
                         <label className="block text-sm font-medium text-jade-800 mb-4">
                             {isRecurring ? "Set Time Template (First Occurrence)" : "Propose Times"}
                         </label>
+                        <p className="text-xs text-jade-500 mb-4">
+                            Select a duration and click on the calendar to add time slots. Right-click to remove.
+                        </p>
 
-                        <div className="flex flex-col md:flex-row gap-4 mb-4 items-end">
-                            <div className="flex-1">
-                                <label className="text-xs text-jade-600 mb-1 block">Date</label>
-                                <DatePicker
-                                    selected={selectedDate}
-                                    onChange={(date) => setSelectedDate(date)}
-                                    className="w-full px-3 py-2 rounded-lg border border-jade-200 bg-white text-sm"
-                                    dateFormat="MMMM d, yyyy"
-                                />
-                            </div>
-                            <div className="w-32">
-                                <label className="text-xs text-jade-600 mb-1 block">Start</label>
-                                <DatePicker
-                                    selected={startTime}
-                                    onChange={(date) => date && setStartTime(date)}
-                                    showTimeSelect
-                                    showTimeSelectOnly
-                                    timeIntervals={30}
-                                    dateFormat="h:mm aa"
-                                    className="w-full px-3 py-2 rounded-lg border border-jade-200 bg-white text-sm"
-                                />
-                            </div>
-                            <div className="w-32">
-                                <label className="text-xs text-jade-600 mb-1 block">End</label>
-                                <DatePicker
-                                    selected={endTime}
-                                    onChange={(date) => date && setEndTime(date)}
-                                    showTimeSelect
-                                    showTimeSelectOnly
-                                    timeIntervals={30}
-                                    dateFormat="h:mm aa"
-                                    className="w-full px-3 py-2 rounded-lg border border-jade-200 bg-white text-sm"
-                                />
-                            </div>
-                            <button
-                                type="button"
-                                onClick={addOption}
-                                className="bg-jade-100 text-jade-700 px-4 py-2 rounded-lg hover:bg-jade-200 transition-colors font-medium text-sm h-[38px]"
-                            >
-                                {isRecurring && options.length > 0 ? 'Update' : 'Add'}
-                            </button>
+                        <div className="h-[500px]">
+                            <WeeklyScheduler
+                                events={schedulerEvents}
+                                currentDate={currentSchedulerDate}
+                                onDateChange={setCurrentSchedulerDate}
+                                onAddEvent={handleAddEvent}
+                                onRemoveEvent={handleRemoveEvent}
+                                isEditable={true}
+                            />
                         </div>
 
-                        {/* Selected Options List */}
-                        <div className="space-y-2 mt-4">
-                            {options.length === 0 && (
-                                <p className="text-sm text-jade-400 italic">No times added yet.</p>
-                            )}
-                            {options.map((opt, idx) => (
-                                <div key={idx} className="flex items-center justify-between bg-jade-50/50 px-3 py-2 rounded border border-jade-100">
-                                    <div className="flex items-center space-x-3 text-sm text-ink">
-                                        <Calendar size={14} className="text-jade-500" />
-                                        <span className="font-medium">{format(opt.start_time, 'MMM d, yyyy')}</span>
-                                        <span className="text-jade-400">|</span>
-                                        <Clock size={14} className="text-jade-500" />
-                                        <span>
-                                            {format(opt.start_time, 'h:mm a')} - {format(opt.end_time, 'h:mm a')}
-                                        </span>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => removeOption(idx)}
-                                        className="text-red-400 hover:text-red-600 transition-colors"
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
                     </div>
 
                     <div className="flex justify-end pt-6">
