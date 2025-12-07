@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns';
 import { parseUTCDate } from '../../../utils/dateUtils';
-import { Check, Loader2, User as UserIcon, Edit2, X, Trash2, Save, Calendar, List, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, Loader2, User as UserIcon, Edit2, X, Trash2, Save, Calendar, List, Clock, ChevronLeft, ChevronRight, Share2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 import ConfirmModal from './Modal';
+import ShareModal from './ShareModal';
 import PollMonthView from './PollMonthView';
 import PollWeekView from './PollWeekView';
 import DatePicker from 'react-datepicker'; // For Edit Series date picker
@@ -96,6 +97,9 @@ const PollDetail: React.FC = () => {
         message: '',
         onConfirm: () => { },
     });
+
+    // Share Modal State
+    const [shareModalOpen, setShareModalOpen] = useState(false);
 
     // Fetch Current User
     useEffect(() => {
@@ -337,6 +341,14 @@ const PollDetail: React.FC = () => {
                 variant={modalConfig.variant}
                 confirmText={modalConfig.confirmText}
             />
+
+            <ShareModal
+                isOpen={shareModalOpen}
+                onClose={() => setShareModalOpen(false)}
+                pollId={poll.id}
+                pollTitle={poll.title}
+            />
+
             {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -453,13 +465,24 @@ const PollDetail: React.FC = () => {
                     </div>
 
                     {!isEditing && currentUser?.id === poll.creator.id && (
-                        <button
-                            onClick={() => setIsEditing(true)}
-                            className="p-2 text-jade-400 hover:text-jade-600 hover:bg-jade-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                            title="Edit Event"
-                        >
-                            <Edit2 size={18} />
-                        </button>
+                        <div className="flex items-center space-x-1">
+                            <button
+                                onClick={() => setShareModalOpen(true)}
+                                className="p-2 text-jade-400 hover:text-jade-600 hover:bg-jade-50 rounded-full transition-colors"
+                                title="Share Event"
+                            >
+                                <Share2 size={18} />
+                            </button>
+                            {currentUser?.id === poll.creator.id && (
+                                <button
+                                    onClick={() => setIsEditing(true)}
+                                    className="p-2 text-jade-400 hover:text-jade-600 hover:bg-jade-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                    title="Edit Event"
+                                >
+                                    <Edit2 size={18} />
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
 
