@@ -17,17 +17,6 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
-
-  const handleLogout = async () => {
-    try {
-        await fetch('/api/auth/logout', { method: 'POST' });
-        // After logout, redirect to login page (which happens automatically if we reload or navigate)
-        window.location.href = '/login';
-    } catch (error) {
-        console.error("Logout failed:", error);
-    }
-  };
-
   return (
     <Background>
       <div className="flex h-screen w-full flex-col md:flex-row">
@@ -48,15 +37,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 </div>
 
                 <nav className="space-y-4">
-                    <div className="flex items-center space-x-3 text-jade-800 bg-jade-50 px-4 py-2 rounded-lg cursor-pointer">
+                    <Link to="/" className="flex items-center space-x-3 text-jade-800 bg-jade-50 px-4 py-2 rounded-lg cursor-pointer">
                         <LayoutGrid size={18} />
                         <span className="font-sans text-sm tracking-wide">Dashboard</span>
-                    </div>
-                    {/* Placeholder for future links */}
-                    <div className="flex items-center space-x-3 text-jade-600/60 px-4 py-2 rounded-lg cursor-not-allowed">
+                    </Link>
+
+                    <Link to="/profile" className="flex items-center space-x-3 text-jade-600 hover:text-jade-800 hover:bg-jade-50/50 px-4 py-2 rounded-lg transition-colors cursor-pointer">
                         <UserIcon size={18} />
                         <span className="font-sans text-sm tracking-wide">Profile</span>
-                    </div>
+                    </Link>
                 </nav>
             </div>
 
@@ -71,9 +60,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                         <p className="text-sm font-medium text-ink truncate">{user.display_name || user.username}</p>
                         <p className="text-xs text-jade-600 truncate">#{user.discord_id.slice(-4)}</p>
                     </div>
-                    <button onClick={handleLogout} className="text-jade-400 hover:text-red-400 transition-colors">
-                        <LogOut size={16} />
-                    </button>
+                    {/* Logout moved to Profile page */}
                 </div>
             )}
         </motion.aside>

@@ -14,6 +14,15 @@ class User(SQLModel, table=True):
     votes: List["Vote"] = Relationship(back_populates="user")
     mentions_created: List["UserMention"] = Relationship(back_populates="creator", sa_relationship_kwargs={"foreign_keys": "UserMention.creator_id"})
     mentions_received: List["UserMention"] = Relationship(back_populates="target_user", sa_relationship_kwargs={"foreign_keys": "UserMention.target_user_id"})
+    unavailability: List["UserUnavailability"] = Relationship(back_populates="user", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+
+class UserUnavailability(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    start_time: datetime
+    end_time: datetime
+
+    user: Optional[User] = Relationship(back_populates="unavailability")
 
 class UserMention(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("creator_id", "target_user_id"),)
