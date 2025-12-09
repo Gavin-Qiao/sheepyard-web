@@ -37,15 +37,8 @@ interface WeeklySchedulerProps {
     isReadOnly?: boolean; // If true, no interactions at all
     deadline?: Date | null; // Deadline line to display
     onDeadlineChange?: (date: Date) => void; // Callback when deadline is clicked/set
+    eventDuration?: number; // Duration in minutes for new events (default 30)
 }
-
-const DURATIONS = [
-    { label: '30m', value: 30 },
-    { label: '1h', value: 60 },
-    { label: '1.5h', value: 90 },
-    { label: '2h', value: 120 },
-    { label: '3h', value: 180 },
-];
 
 const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
     events,
@@ -56,11 +49,16 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
     isEditable = false,
     isReadOnly = false,
     deadline,
-    onDeadlineChange
+    onDeadlineChange,
+    eventDuration = 30
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [hourHeight, setHourHeight] = useState(60);
-    const [selectedDuration, setSelectedDuration] = useState(30);
+
+    // Calculate actual duration in minutes
+    const getActualDuration = () => {
+        return eventDuration;
+    };
 
     // Calculate week
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 }); // Sunday start
@@ -121,7 +119,7 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
 
         // Event add mode
         if (isEditable && onAddEvent) {
-            const end = addMinutes(clickedTime, selectedDuration);
+            const end = addMinutes(clickedTime, getActualDuration());
             onAddEvent(clickedTime, end);
         }
     };
@@ -141,41 +139,19 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
     return (
         <div className="flex flex-col h-full bg-white/60 backdrop-blur-md border border-jade-200 rounded-xl shadow-sm overflow-hidden select-none">
             {/* Toolbar */}
-            <div className="flex items-center justify-between p-3 border-b border-jade-200 bg-jade-50/50">
-                <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2">
-                        <button onClick={() => onDateChange(addDays(currentDate, -7))} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+            <div className="flex items-center justify-between p-4 border-b border-jade-200 bg-jade-50/50">
+                <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => onDateChange(addDays(currentDate, -7))} className="p-1.5 hover:bg-jade-100 rounded text-jade-600">
                             <ChevronLeft size={20} />
                         </button>
                         <span className="text-sm font-bold text-ink w-32 text-center">
                             {format(currentDate, "'Week of' MMM d")}
                         </span>
-                        <button onClick={() => onDateChange(addDays(currentDate, 7))} className="p-1 hover:bg-jade-100 rounded text-jade-600">
+                        <button onClick={() => onDateChange(addDays(currentDate, 7))} className="p-1.5 hover:bg-jade-100 rounded text-jade-600">
                             <ChevronRight size={20} />
                         </button>
                     </div>
-
-                    {isEditable && (
-                        <div className="flex items-center space-x-2 border-l border-jade-200 pl-4">
-                            <span className="text-xs font-bold text-jade-600 uppercase">Duration:</span>
-                            <div className="flex bg-white rounded-lg border border-jade-200 p-0.5">
-                                {DURATIONS.map(d => (
-                                    <button
-                                        key={d.value}
-                                        onClick={() => setSelectedDuration(d.value)}
-                                        className={cn(
-                                            "px-2 py-1 text-xs rounded-md transition-all font-medium",
-                                            selectedDuration === d.value
-                                                ? "bg-jade-500 text-white shadow-sm"
-                                                : "text-jade-600 hover:bg-jade-50"
-                                        )}
-                                    >
-                                        {d.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 <div className="text-xs font-bold text-jade-400">

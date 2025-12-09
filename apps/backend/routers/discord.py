@@ -54,6 +54,25 @@ def share_poll_to_discord(
     """
     Share a poll to a specific Discord channel.
     """
+    # Special case for Profile Sharing
+    if share_request.poll_id == 0:
+        try:
+             # Record mentions if any
+            if share_request.mentioned_user_ids:
+                mention_service.record_mentions(session, current_user.id, share_request.mentioned_user_ids)
+
+            result = discord_service.send_profile_share_message(
+                channel_id=share_request.channel_id,
+                file_owner=current_user,
+                frontend_url=settings.FRONTEND_URL,
+                custom_message=share_request.custom_message,
+                mentioned_user_ids=share_request.mentioned_user_ids,
+                db_session=session
+            )
+            return {"message": "Profile shared successfully", "discord_message_id": result.get("id")}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
     # Verify Poll exists
     poll = session.get(Poll, share_request.poll_id)
     if not poll:

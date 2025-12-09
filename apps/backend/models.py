@@ -9,6 +9,7 @@ class User(SQLModel, table=True):
     username: str
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    guild_joined_at: Optional[datetime] = None
 
     polls: List["Poll"] = Relationship(back_populates="creator")
     votes: List["Vote"] = Relationship(back_populates="user")

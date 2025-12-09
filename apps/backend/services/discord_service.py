@@ -73,6 +73,23 @@ class DiscordService:
             print(f"Error fetching members: {e}")
             raise e
 
+    def get_guild_member(self, guild_id: str, user_id: str) -> Optional[Dict]:
+        """
+        Fetches a single member from the guild.
+        """
+        url = f"{self.BASE_URL}/guilds/{guild_id}/members/{user_id}"
+
+        try:
+            with httpx.Client() as client:
+                response = client.get(url, headers=self.headers)
+                if response.status_code == 404:
+                    return None
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            print(f"Error fetching member {user_id}: {e}")
+            return None
+
     def send_poll_share_message(self, channel_id: str, poll: Poll, creator: User, frontend_url: str, custom_message: Optional[str] = None, mentioned_user_ids: Optional[List[int]] = None, db_session = None) -> Dict:
         """
         Sends a rich embed message to the specified Discord channel.
@@ -200,5 +217,76 @@ class DiscordService:
                 client.post(url, headers=self.headers, json=payload)
         except Exception as e:
             print(f"Error sending deadline notification: {e}")
+
+    def send_profile_share_message(self, channel_id: str, file_owner: User, frontend_url: str, custom_message: Optional[str] = None, mentioned_user_ids: Optional[List[int]] = None, db_session = None) -> Dict:
+        """
+        Sends a share message for a user's availability profile.
+        """
+        url = f"{self.BASE_URL}/channels/{channel_id}/messages"
+
+        # Link to home page or specific profile route if it existed
+        # Since Profile.tsx is "Your Profile" and edits it, and we assume there isn't a public read-only view yet or it's just the main app.
+        # We will link to the app root for now.
+        profile_link = f"{frontend_url.rstrip('/')}/" 
+
+        fields = [
+             {
+                "name": "User",
+                "value": file_owner.display_name or file_owner.username,
+                "inline": True
+            },
+            {
+                "name": "Action",
+                "value": "Shared their Unavailability Schedule",
+                "inline": True
+            }
+        ]
+
+        embed = {
+            "title": f"📅 Availability Update",
+            "description": f"Check out **{file_owner.display_name or file_owner.username}**'s availability!",
+            "url": profile_link,
+            "color": 0x00A86B,  # Jade color
+            "fields": fields,
+            "thumbnail": {
+                "url": file_owner.avatar_url or ""
+            },
+            "footer": {
+                "text": "SheepYard Calendar",
+                "icon_url": "https://cdn.discordapp.com/emojis/123456789.png" 
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+        # Handle mentions
+        content = custom_message if custom_message else "**Availability Shared!**"
+
+        mention_str = ""
+        if mentioned_user_ids and db_session:
+            from models import User # lazy import
+            users = db_session.query(User).filter(User.id.in_(mentioned_user_ids)).all()
+            mentions = [f"<@{u.discord_id}>" for u in users]
+            if mentions:
+                mention_str = " ".join(mentions)
+
+        if mention_str:
+            content = f"{content}\n\n{mention_str}"
+
+        payload = {
+            "content": content,
+            "embeds": [embed]
+        }
+
+        try:
+            with httpx.Client() as client:
+                response = client.post(url, headers=self.headers, json=payload)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            print(f"Discord API Error: {e.response.text}")
+            raise e
+        except Exception as e:
+            print(f"Error sending message: {e}")
+            raise e
 
 discord_service = DiscordService()

@@ -103,6 +103,14 @@ def create_db_and_tables():
         except Exception:
             pass
 
+        # Migration for User guild_joined_at
+        try:
+            conn.execute(text("ALTER TABLE user ADD COLUMN guild_joined_at TIMESTAMP"))
+            conn.commit()
+            print("Added guild_joined_at column to user table.")
+        except Exception:
+            pass
+
     print("Database tables created.")
 
 import asyncio

@@ -11,7 +11,8 @@ import { twMerge } from 'tailwind-merge';
 import ConfirmModal from './Modal';
 import WeeklyScheduler, { SchedulerEvent } from './WeeklyScheduler';
 import { MentionSelector } from './MentionSelector';
-import './datepicker-custom.css';
+
+import { DurationSelector } from './DurationSelector';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
     return twMerge(clsx(inputs));
@@ -73,9 +74,11 @@ const PollCreate: React.FC = () => {
     const [deadlineMentions, setDeadlineMentions] = useState<number[]>([]);
     const [channels, setChannels] = useState<Channel[]>([]);
 
+
     // Scheduler State
     const [currentSchedulerDate, setCurrentSchedulerDate] = useState(new Date());
     const [isInvalidDeadline, setIsInvalidDeadline] = useState(false);
+    const [duration, setDuration] = useState(30);
 
     // Modal state for recurring template replacement
     const [modalConfig, setModalConfig] = useState<{
@@ -474,9 +477,12 @@ const PollCreate: React.FC = () => {
                         <label className="block text-sm font-medium text-jade-800 mb-4">
                             {isRecurring ? "Set Time Template (First Occurrence)" : "Propose Times"}
                         </label>
-                        <p className="text-xs text-jade-500 mb-4">
-                            Select a duration and click on the calendar to add time slots. Right-click to remove.
-                        </p>
+                        <div className="flex justify-between items-center mb-4">
+                            <p className="text-xs text-jade-500">
+                                Click on the calendar to add time slots. Right-click to remove.
+                            </p>
+                            <DurationSelector duration={duration} onChange={setDuration} />
+                        </div>
 
                         <div className="h-[500px]">
                             <WeeklyScheduler
@@ -487,6 +493,7 @@ const PollCreate: React.FC = () => {
                                 onRemoveEvent={handleRemoveEvent}
                                 isEditable={true}
                                 deadline={enableDeadline ? deadlineDate : null}
+                                eventDuration={duration}
                             />
                         </div>
 
