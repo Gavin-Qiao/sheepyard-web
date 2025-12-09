@@ -5,7 +5,7 @@ from sqlalchemy import text
 # Import models to ensure they are registered with SQLModel
 from models import User, Poll, PollOption, Vote, UserMention
 
-from routers import auth, polls, votes, discord, users
+from routers import auth, polls, votes, discord, users, profile
 
 print("Initializing FastAPI app...")
 app = FastAPI()
@@ -15,6 +15,7 @@ app.include_router(polls.router, prefix="/api")
 app.include_router(votes.router, prefix="/api")
 app.include_router(discord.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
+app.include_router(profile.router, prefix="/api")
 
 def create_db_and_tables():
     print("Creating database tables...")
@@ -99,6 +100,14 @@ def create_db_and_tables():
             conn.execute(text("ALTER TABLE polloption ADD COLUMN notification_sent BOOLEAN DEFAULT 0"))
             conn.commit()
             print("Added notification_sent column to polloption table.")
+        except Exception:
+            pass
+
+        # Migration for User guild_joined_at
+        try:
+            conn.execute(text("ALTER TABLE user ADD COLUMN guild_joined_at TIMESTAMP"))
+            conn.commit()
+            print("Added guild_joined_at column to user table.")
         except Exception:
             pass
 

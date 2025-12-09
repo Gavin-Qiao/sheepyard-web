@@ -1,13 +1,15 @@
 import httpx
 from urllib.parse import quote
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Response
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlmodel import Session, select
-from datetime import timedelta
+
 
 from config import settings
 from models import User
 from dependencies import get_session, get_current_user
+from services.discord_service import discord_service
 from security import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 
 router = APIRouter()
@@ -62,9 +64,17 @@ def callback(code: str, response: Response, session: Session = Depends(get_sessi
         )
 
         display_name = None
+        guild_joined_at = None
         if member_response.status_code == 200:
             member_data = member_response.json()
             display_name = member_data.get("nick")
+            # Extract joined_at timestamp (ISO 8601 format)
+            joined_at_str = member_data.get("joined_at")
+            if joined_at_str:
+                try:
+                    guild_joined_at = datetime.fromisoformat(joined_at_str.replace("Z", "+00:00"))
+                except ValueError:
+                    pass
 
         # Fallback to global display name or username if no nick
         if not display_name:
@@ -83,13 +93,17 @@ def callback(code: str, response: Response, session: Session = Depends(get_sessi
                 discord_id=discord_id,
                 username=username,
                 display_name=display_name,
-                avatar_url=avatar_url
+                avatar_url=avatar_url,
+                guild_joined_at=guild_joined_at
             )
             session.add(db_user)
         else:
             db_user.username = username
             db_user.display_name = display_name
             db_user.avatar_url = avatar_url
+            # Update guild_joined_at if we have a value and it's not already set
+            if guild_joined_at and not db_user.guild_joined_at:
+                db_user.guild_joined_at = guild_joined_at
             session.add(db_user)
 
         session.commit()
@@ -113,7 +127,27 @@ def callback(code: str, response: Response, session: Session = Depends(get_sessi
         return response
 
 @router.get("/users/me")
-def read_users_me(current_user: User = Depends(get_current_user)):
+def read_users_me(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    # Backfill guild_joined_at if missing
+    if not current_user.guild_joined_at and settings.DISCORD_GUILD_ID:
+        try:
+            member = discord_service.get_guild_member(settings.DISCORD_GUILD_ID, current_user.discord_id)
+            if member and member.get("joined_at"):
+                joined_at_str = member.get("joined_at")
+                try:
+                    joined_at = datetime.fromisoformat(joined_at_str.replace("Z", "+00:00"))
+                    current_user.guild_joined_at = joined_at
+                    session.add(current_user)
+                    session.commit()
+                    session.refresh(current_user)
+                except ValueError:
+                    pass
+        except Exception as e:
+            print(f"Failed to backfill user joined_at: {e}")
+
     return current_user
 
 @router.post("/auth/logout")
