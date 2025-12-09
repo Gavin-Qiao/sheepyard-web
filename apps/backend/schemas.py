@@ -1,5 +1,5 @@
 from typing import List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlmodel import SQLModel
 from pydantic import validator
 
@@ -21,7 +21,24 @@ class PollOptionBase(SQLModel):
         return v
 
 class PollOptionCreate(PollOptionBase):
-    pass
+    @validator("start_time")
+    def start_time_must_be_future(cls, v):
+        # Allow a small buffer (e.g. 1 minute) for network latency, or be strict.
+        # User said "cannot create a NEW event in the past".
+        # Using UTC for comparison. Pydantic often parses as naive if no TZ info, or aware.
+        # We should ensure we compare correctly.
+        now = datetime.now(timezone.utc)
+        if v.tzinfo is None:
+            # If naive, assume it's UTC or convert appropriately.
+            # Our frontend sends ISO strings which usually parse to aware or we should treat as UTC.
+            # If naive, we might assume it's meant to be UTC.
+            v_aware = v.replace(tzinfo=timezone.utc)
+        else:
+            v_aware = v
+
+        if v_aware < now:
+             raise ValueError("start_time must be in the future")
+        return v
 
 class PollOptionRead(PollOptionBase):
     id: int

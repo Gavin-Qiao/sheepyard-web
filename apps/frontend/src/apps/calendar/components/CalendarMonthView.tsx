@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addWeeks, subWeeks, isBefore, startOfDay } from 'date-fns';
 import { parseUTCDate } from '../../../utils/dateUtils';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Link } from 'react-router-dom';
 import { ZoomOut, Crown, Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
-import CalendarYearView from './CalendarYearView';
+import YearView from '../../../components/Calendar/YearView';
 import CalendarWeekView from './CalendarWeekView';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -83,13 +83,18 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
     if (viewMode === 'year') {
         return (
             <div className="relative">
-                <CalendarYearView
-                    polls={polls}
+                <YearView
+                    events={polls.flatMap(p => p.options.map(o => ({
+                        date: parseUTCDate(o.start_time),
+                        value: 1, // Simple density
+                        color: 'bg-jade-500'
+                    })))}
                     currentDate={currentDate}
                     onMonthSelect={(date) => {
                         setCurrentDate(date);
                         setViewMode('month');
                     }}
+                    minDate={new Date()} // Dashboard validation
                 />
             </div>
         );
@@ -193,41 +198,37 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                     const dateStr = format(day, 'yyyy-MM-dd');
                     const dayEvents = eventsByDate.get(dateStr) || [];
                     const isToday = isSameDay(day, today);
+                    const isPast = isBefore(day, startOfDay(today)); // Strictly before today (since today is allowed)
 
                     return (
-                        <div key={dateStr} className={cn("bg-white h-32 p-1 flex flex-col group hover:bg-white/80 transition-colors", isToday && "bg-jade-50/30")}>
+                        <div key={dateStr} className={cn(
+                            "h-32 p-1 flex flex-col group transition-colors",
+                            isPast ? "bg-gray-50/80 text-gray-400" : "bg-white hover:bg-white/80",
+                            isToday && "bg-jade-50/30"
+                        )}>
                             <span className={cn(
                                 "text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full mb-1 ml-auto",
-                                isToday ? "bg-jade-500 text-white" : "text-jade-400"
+                                isToday ? "bg-jade-500 text-white" : (isPast ? "text-gray-400" : "text-jade-400")
                             )}>
                                 {format(day, 'd')}
                             </span>
 
-                            <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
+                            <div className={cn("flex-1 overflow-y-auto space-y-1 custom-scrollbar", isPast && "opacity-60 grayscale")}>
                                 {dayEvents.map(({ poll, option }) => {
-                                    // Collect unique voters for this option
-                                    // The backend structure for list polls might not include votes if I didn't verify it.
-                                    // I verified that I updated PollService to include votes.
-                                    // However, I need to make sure the Frontend Poll interface matches the response.
-                                    // The `Poll` interface above has `options: PollOption[]`. `PollOption` has `votes`.
-
                                     const voters = option.votes?.map(v => v.user) || [];
                                     const creator = poll.creator;
-                                    // Remove creator from voters list if present to avoid duplication/confusion if they voted
-                                    // But user asked to separate creator.
-                                    // "The creator of the pool can also vote for the pool."
-                                    // "Creator left-left aligned and the voter right aligned."
-
-                                    // Let's filter out creator from voters list for the "right aligned" part
                                     const otherVoters = voters.filter(v => v.id !== creator?.id);
 
                                     return (
                                         <Link
                                             to={`${poll.id}`}
                                             key={`${poll.id}-${option.id}`}
-                                            className="block text-[10px] bg-jade-50 border border-jade-100 p-1 rounded hover:bg-jade-100 transition-colors"
+                                            className={cn(
+                                                "block text-[10px] border p-1 rounded transition-colors",
+                                                isPast ? "bg-gray-100 border-gray-200" : "bg-jade-50 border-jade-100 hover:bg-jade-100"
+                                            )}
                                         >
-                                            <div className="font-bold text-jade-800 truncate mb-1">{poll.title}</div>
+                                            <div className={cn("font-bold truncate mb-1", isPast ? "text-gray-600" : "text-jade-800")}>{poll.title}</div>
 
                                             <div className="flex items-center justify-between pb-0.5">
                                                 {/* Creator (Left) */}
@@ -237,7 +238,10 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                                                             {creator.avatar_url ? (
                                                                 <img src={creator.avatar_url} className="w-4 h-4 rounded-full ring-1 ring-white" />
                                                             ) : (
-                                                                <div className="w-4 h-4 rounded-full bg-jade-600 text-white flex items-center justify-center text-[8px] ring-1 ring-white">
+                                                                <div className={cn(
+                                                                    "w-4 h-4 rounded-full flex items-center justify-center text-[8px] ring-1 ring-white",
+                                                                    isPast ? "bg-gray-400 text-white" : "bg-jade-600 text-white"
+                                                                )}>
                                                                     {creator.username[0].toUpperCase()}
                                                                 </div>
                                                             )}
@@ -256,7 +260,10 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                                                             {voter.avatar_url ? (
                                                                 <img src={voter.avatar_url} className="w-4 h-4 rounded-full ring-1 ring-white" />
                                                             ) : (
-                                                                <div className="w-4 h-4 rounded-full bg-jade-300 text-jade-800 flex items-center justify-center text-[8px] ring-1 ring-white">
+                                                                <div className={cn(
+                                                                    "w-4 h-4 rounded-full flex items-center justify-center text-[8px] ring-1 ring-white",
+                                                                    isPast ? "bg-gray-300 text-gray-600" : "bg-jade-300 text-jade-800"
+                                                                )}>
                                                                     {voter.username[0].toUpperCase()}
                                                                 </div>
                                                             )}
@@ -264,7 +271,7 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                                                     ))}
                                                 </div>
 
-                                                {voters.length === 0 && !creator && <span className="text-jade-300 italic">No participants</span>}
+                                                {voters.length === 0 && !creator && <span className={cn("italic", isPast ? "text-gray-300" : "text-jade-300")}>No participants</span>}
                                             </div>
                                         </Link>
                                     );

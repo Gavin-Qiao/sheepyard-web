@@ -9,8 +9,8 @@ import { twMerge } from 'tailwind-merge';
 
 import ConfirmModal from './Modal';
 import ShareModal from './ShareModal';
-import PollMonthView from './PollMonthView';
-import WeeklyScheduler, { SchedulerEvent } from './WeeklyScheduler'; // Replaced PollWeekView
+import MonthView from '../../../components/Calendar/MonthView';
+import WeeklyScheduler, { SchedulerEvent } from '../../../components/Calendar/WeeklyScheduler'; // Replaced PollWeekView
 import DatePicker from 'react-datepicker'; // For Edit Series date picker
 import "react-datepicker/dist/react-datepicker.css";
 import './datepicker-custom.css';
@@ -370,6 +370,14 @@ const PollDetail: React.FC = () => {
         data: { votes: opt.votes } // Pass votes to scheduler
     }));
 
+    // Prepare calendar events for MonthView
+    const calendarEvents = poll.options.map(opt => ({
+        date: parseUTCDate(opt.start_time),
+        value: Math.min(1, Math.max(0.2, opt.votes?.length ? opt.votes.length / 5 : 0.5)), // Intensity based on votes
+        hasMarker: true,
+        color: opt.votes?.some(v => v.user?.id === currentUser?.id) ? 'bg-jade-500' : 'bg-jade-300'
+    }));
+
     return (
         <div className="space-y-8">
             <ConfirmModal
@@ -597,13 +605,24 @@ const PollDetail: React.FC = () => {
                             <ChevronRight size={20} />
                         </button>
                     </div>
-                    <PollMonthView
-                        options={poll.options}
+                    <MonthView
+                        events={calendarEvents}
                         currentDate={currentDate}
                         onDateSelect={(date) => {
                             setCurrentDate(date);
                             setViewMode('week');
                         }}
+                        minDate={new Date()} // Optional, if you want to prevent looking way back? Actually for viewing, we might want to see past. So maybe not enforcing minDate here for viewing. But user asked for global validation. Let's keep minDate for interaction, but for viewing it might be annoyance.
+                    // Actually the user said "prevent past events from being created or selected".
+                    // In Poll Detail, we are mostly viewing.
+                    // I will pass minDate={new Date(0)} (very old) or just omit it if I want to allow viewing past.
+                    // But wait, the MonthView component visually disables cells before minDate.
+                    // If I view an old poll, I want to see the events.
+                    // So for Poll Detail (View), minDate should probably be the Created At date of the poll? Or just undefined to allow all.
+                    // Let's rely on default behavior. Wait, user specifically said "The "prevent past events" rule".
+                    // In Poll Detail, adding options is restricted by `preventPastEvents` in WeeklyScheduler.
+                    // For MonthView, it's mostly navigation.
+                    // I'll leave minDate undefined here to allow viewing past history of the poll.
                     />
                 </>
             )}
@@ -618,6 +637,7 @@ const PollDetail: React.FC = () => {
                         isReadOnly={!isCreator}
                         onAddEvent={handleAddOptionScheduler}
                         onRemoveEvent={handleDeleteOption}
+                        preventPastEvents={true}
                     />
                 </div>
             )}

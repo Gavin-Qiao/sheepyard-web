@@ -38,6 +38,7 @@ interface WeeklySchedulerProps {
     deadline?: Date | null; // Deadline line to display
     onDeadlineChange?: (date: Date) => void; // Callback when deadline is clicked/set
     eventDuration?: number; // Duration in minutes for new events (default 30)
+    preventPastEvents?: boolean; // If true, prevents creating events in the past
 }
 
 const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
@@ -50,7 +51,8 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
     isReadOnly = false,
     deadline,
     onDeadlineChange,
-    eventDuration = 30
+    eventDuration = 30,
+    preventPastEvents = true
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [hourHeight, setHourHeight] = useState(60);
@@ -118,12 +120,8 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
 
         const clickedTime = setMinutes(setHours(day, clickedHour), clickedMinutes);
 
-        // Prevent past clicks
-        // Logic: Cannot create event in the past.
-        // Also check if clickedTime + duration is in the past?
-        // User said "Start time must be in the future".
-        // Let's enforce start time > now.
-        if (isBefore(clickedTime, new Date())) {
+        // Prevent past clicks if enabled
+        if (preventPastEvents && isBefore(clickedTime, new Date())) {
             // Maybe show a toast or shake? For now just ignore.
             return;
         }
@@ -212,13 +210,6 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
                         });
 
                         // Visual contrast for past:
-                        // If day is entirely before today (start of today), dim whole column.
-                        // If day is today, dim only past hours.
-                        // If day is future, normal.
-
-                        // BUT "moment of creation is threshold".
-                        // So for "today", we calculate the pixel height of "now".
-
                         let pastHeight = 0;
                         if (isBefore(day, startOfDay(now))) {
                             pastHeight = hourHeight * 24; // Full day
@@ -246,10 +237,6 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
                                     className="absolute left-0 right-0 top-0 bg-gray-100/50 pointer-events-none z-10"
                                     style={{ height: `${pastHeight}px` }}
                                 >
-                                    {/* Optional diagonal lines or pattern to indicate 'disabled' elegantly?
-                                        Solid semi-transparent gray is usually fine.
-                                        User said "dim the background".
-                                    */}
                                 </div>
 
                                 {/* Current Time Indicator (if today) */}
@@ -278,12 +265,6 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
                                         </div>
                                         <div className="truncate font-medium">{evt.label || '(No Label)'}</div>
 
-                                        {/* Optional Delete Button overlay on hover for better UX than just right click */}
-                                        {isEditable && (
-                                            <div className="absolute top-0 right-0 p-1 opacity-0 hover:opacity-100 transition-opacity">
-                                                {/* Using right click mainly as requested, but visual cue is good */}
-                                            </div>
-                                        )}
                                         {/* Display Votes Count if in data */}
                                         {evt.data?.votes && evt.data.votes.length > 0 && (
                                             <div className="absolute bottom-0 right-1 bg-jade-500 text-white text-[9px] px-1 rounded-full shadow-sm">
@@ -309,8 +290,6 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
                             </div>
                         );
                     })}
-
-
                 </div>
             </div>
         </div>
