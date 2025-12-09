@@ -40,8 +40,19 @@ export const DurationSelector: React.FC<DurationSelectorProps> = ({
     const [customUnit, setCustomUnit] = useState<'min' | 'hr'>('min');
 
     useEffect(() => {
-        setSelectedValue(getSelectedValue());
-    }, [duration]);
+        const newValue = getSelectedValue();
+
+        // If we are currently in custom mode (-1), and the new duration matches the current custom value,
+        // we should stay in custom mode (don't auto-switch to preset).
+        if (selectedValue === -1) {
+            const currentCustomMins = customUnit === 'hr' ? customValue * 60 : customValue;
+            if (duration === currentCustomMins) {
+                return;
+            }
+        }
+
+        setSelectedValue(newValue);
+    }, [duration, customValue, customUnit, selectedValue]);
 
     const handlePresetClick = (val: number) => {
         setSelectedValue(val);

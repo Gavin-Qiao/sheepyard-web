@@ -5,7 +5,7 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Link } from 'react-router-dom';
 import { ZoomOut, Crown, Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
-import CalendarYearView from './CalendarYearView';
+import YearView from '../../../components/Calendar/YearView';
 import CalendarWeekView from './CalendarWeekView';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -83,13 +83,18 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
     if (viewMode === 'year') {
         return (
             <div className="relative">
-                <CalendarYearView
-                    polls={polls}
+                <YearView
+                    events={polls.flatMap(p => p.options.map(o => ({
+                        date: parseUTCDate(o.start_time),
+                        value: 1, // Simple density
+                        color: 'bg-jade-500'
+                    })))}
                     currentDate={currentDate}
                     onMonthSelect={(date) => {
                         setCurrentDate(date);
                         setViewMode('month');
                     }}
+                    minDate={new Date()} // Dashboard validation
                 />
             </div>
         );

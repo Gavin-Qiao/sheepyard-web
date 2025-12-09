@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { addDays, addMonths, addWeeks, getDay } from 'date-fns';
 import { Background } from '../components/Background';
 import { motion } from 'framer-motion';
-import { LogOut, ArrowLeft, Calendar as CalendarIcon, Share2 } from 'lucide-react';
+import { LogOut, ArrowLeft, Share2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import WeeklyScheduler, { SchedulerEvent } from '../apps/calendar/components/WeeklyScheduler';
+import WeeklyScheduler, { SchedulerEvent } from '../components/Calendar/WeeklyScheduler';
+import MonthView from '../components/Calendar/MonthView';
+import YearView from '../components/Calendar/YearView';
 import { RecurrenceControls, RecurrenceType } from '../apps/calendar/components/RecurrenceControls';
 
 import ShareModal from '../apps/calendar/components/ShareModal';
@@ -35,6 +37,7 @@ const Profile: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [blocks, setBlocks] = useState<UnavailabilityBlock[]>([]);
     const [currentDate, setCurrentDate] = useState(new Date());
+    const [viewMode, setViewMode] = useState<'week' | 'month' | 'year'>('week');
 
     // Recurrence state
     const [isRecurring, setIsRecurring] = useState(false);
@@ -207,6 +210,13 @@ const Profile: React.FC = () => {
         color: 'bg-stone-200 border-stone-300 text-stone-700'
     }));
 
+    // Convert blocks to CalendarEvents for Month/Year view
+    const calendarEvents = blocks.map(b => ({
+        date: new Date(b.start_time),
+        value: 1, // Simple binary intensity for unavailability
+        color: 'bg-red-200' // Visual indicator for busy
+    }));
+
     return (
         <Background>
             <div className="min-h-screen w-full p-8 md:p-12 overflow-y-auto">
@@ -275,57 +285,73 @@ const Profile: React.FC = () => {
                         className="col-span-1 lg:col-span-2 space-y-6"
                     >
                         <div className="bg-white/60 backdrop-blur-md border border-jade-100 rounded-xl p-6 shadow-sm">
-                            <div className="flex items-center justify-between mb-6">
-                                <div className="flex items-center space-x-3">
-                                    <div className="bg-stone-100 p-2 rounded-lg text-stone-600">
-                                        <CalendarIcon size={20} />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-serif text-ink">Availability & Schedule</h3>
-                                        <p className="text-sm text-jade-600">Mark times when you are busy or unavailable.</p>
-                                    </div>
-                                </div>
+                            <div>
+                                <h3 className="text-lg font-serif text-ink">Availability & Schedule</h3>
+                                <p className="text-sm text-jade-600">Mark times when you are busy or unavailable.</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="flex bg-jade-50 p-1 rounded-lg">
                                 <button
-                                    onClick={() => setShareModalOpen(true)}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-jade-700 bg-jade-50 hover:bg-jade-100 rounded-lg transition-colors border border-jade-200"
+                                    onClick={() => setViewMode('week')}
+                                    className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${viewMode === 'week' ? 'bg-white text-jade-700 shadow-sm' : 'text-jade-400 hover:text-jade-600'}`}
                                 >
-                                    <Share2 size={16} />
-                                    Share
+                                    Week
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('month')}
+                                    className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${viewMode === 'month' ? 'bg-white text-jade-700 shadow-sm' : 'text-jade-400 hover:text-jade-600'}`}
+                                >
+                                    Month
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('year')}
+                                    className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${viewMode === 'year' ? 'bg-white text-jade-700 shadow-sm' : 'text-jade-400 hover:text-jade-600'}`}
+                                >
+                                    Year
                                 </button>
                             </div>
+                            <button
+                                onClick={() => setShareModalOpen(true)}
+                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-jade-700 bg-jade-50 hover:bg-jade-100 rounded-lg transition-colors border border-jade-200"
+                            >
+                                <Share2 size={16} />
+                                Share
+                            </button>
+                        </div>
+                        {/* Recurrence Controls */}
+                        <RecurrenceControls
+                            isRecurring={isRecurring}
+                            onRecurringChange={setIsRecurring}
+                            recurrenceType={recurrenceType}
+                            onTypeChange={setRecurrenceType}
+                            recurrenceEndMode={recurrenceEndMode}
+                            onEndModeChange={setRecurrenceEndMode}
+                            recurrenceEndDate={recurrenceEndDate}
+                            onEndDateChange={setRecurrenceEndDate}
+                            recurrenceCount={recurrenceCount}
+                            onCountChange={setRecurrenceCount}
+                            customDays={customDays}
+                            onCustomDaysChange={setCustomDays}
+                            showAIOption={false}
+                            label="Recurring Unavailability"
+                            radioGroupName="profileEndMode"
+                        />
 
-                            {/* Recurrence Controls */}
-                            <RecurrenceControls
-                                isRecurring={isRecurring}
-                                onRecurringChange={setIsRecurring}
-                                recurrenceType={recurrenceType}
-                                onTypeChange={setRecurrenceType}
-                                recurrenceEndMode={recurrenceEndMode}
-                                onEndModeChange={setRecurrenceEndMode}
-                                recurrenceEndDate={recurrenceEndDate}
-                                onEndDateChange={setRecurrenceEndDate}
-                                recurrenceCount={recurrenceCount}
-                                onCountChange={setRecurrenceCount}
-                                customDays={customDays}
-                                onCustomDaysChange={setCustomDays}
-                                showAIOption={false}
-                                label="Recurring Unavailability"
-                                radioGroupName="profileEndMode"
-                            />
+                        <div className="flex justify-end mt-4">
+                            <DurationSelector duration={duration} onChange={setDuration} />
+                        </div>
 
-                            <div className="flex justify-end mt-4">
-                                <DurationSelector duration={duration} onChange={setDuration} />
-                            </div>
+                        <div className="mt-4 flex items-start space-x-2 text-xs text-jade-500 bg-jade-50 p-3 rounded-lg border border-jade-100">
+                            <div className="mt-0.5">ℹ️</div>
+                            <p>
+                                Click on the calendar to create a block. Right-click a block to remove it.
+                                {isRecurring && ` Recurring mode active: ${recurrenceCount} ${recurrenceType.toLowerCase()} occurrences will be created.`}
+                            </p>
+                        </div>
 
-                            <div className="mt-4 flex items-start space-x-2 text-xs text-jade-500 bg-jade-50 p-3 rounded-lg border border-jade-100">
-                                <div className="mt-0.5">ℹ️</div>
-                                <p>
-                                    Click on the calendar to create a block. Right-click a block to remove it.
-                                    {isRecurring && ` Recurring mode active: ${recurrenceCount} ${recurrenceType.toLowerCase()} occurrences will be created.`}
-                                </p>
-                            </div>
-
-                            <div className="h-[500px] mt-2">
+                        <div className="h-[500px] mt-2">
+                            {viewMode === 'week' && (
                                 <WeeklyScheduler
                                     events={schedulerEvents}
                                     currentDate={currentDate}
@@ -334,13 +360,33 @@ const Profile: React.FC = () => {
                                     onRemoveEvent={handleRemoveBlock}
                                     isEditable={true}
                                     eventDuration={duration}
+                                    preventPastEvents={true}
                                 />
-                            </div>
-
-
+                            )}
+                            {viewMode === 'month' && (
+                                <MonthView
+                                    currentDate={currentDate}
+                                    onDateSelect={(date) => {
+                                        setCurrentDate(date);
+                                        setViewMode('week');
+                                    }}
+                                    events={calendarEvents}
+                                    minDate={new Date()}
+                                />
+                            )}
+                            {viewMode === 'year' && (
+                                <YearView
+                                    currentDate={currentDate}
+                                    onMonthSelect={(date) => {
+                                        setCurrentDate(date);
+                                        setViewMode('month');
+                                    }}
+                                    events={calendarEvents}
+                                    minDate={new Date()}
+                                />
+                            )}
                         </div>
                     </motion.div>
-
                 </div>
             </div>
 

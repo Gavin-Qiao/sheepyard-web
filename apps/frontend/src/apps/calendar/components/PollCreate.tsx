@@ -9,7 +9,7 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 import ConfirmModal from './Modal';
-import WeeklyScheduler, { SchedulerEvent } from './WeeklyScheduler';
+import WeeklyScheduler, { SchedulerEvent } from '../../../components/Calendar/WeeklyScheduler';
 import { MentionSelector } from './MentionSelector';
 
 import { DurationSelector } from './DurationSelector';
@@ -494,6 +494,7 @@ const PollCreate: React.FC = () => {
                                 isEditable={true}
                                 deadline={enableDeadline ? deadlineDate : null}
                                 eventDuration={duration}
+                                preventPastEvents={true}
                             />
                         </div>
 
