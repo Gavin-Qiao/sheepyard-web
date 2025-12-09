@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { format, addDays, startOfWeek, isSameDay, differenceInMinutes, startOfDay, addMinutes, setHours, setMinutes } from 'date-fns';
+import { format, addDays, startOfWeek, isSameDay, differenceInMinutes, startOfDay, addMinutes, setHours, setMinutes, isBefore } from 'date-fns';
 import { parseISO } from 'date-fns';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -54,6 +54,13 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [hourHeight, setHourHeight] = useState(60);
+    const [now, setNow] = useState(new Date());
+
+    // Update 'now' every minute to keep visual accurate
+    useEffect(() => {
+        const interval = setInterval(() => setNow(new Date()), 60000);
+        return () => clearInterval(interval);
+    }, []);
 
     // Calculate actual duration in minutes
     const getActualDuration = () => {
@@ -110,6 +117,16 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
         const clickedMinutes = Math.floor((offsetY % hourHeight) / (hourHeight / 2)) * 30; // Snap to 30m
 
         const clickedTime = setMinutes(setHours(day, clickedHour), clickedMinutes);
+
+        // Prevent past clicks
+        // Logic: Cannot create event in the past.
+        // Also check if clickedTime + duration is in the past?
+        // User said "Start time must be in the future".
+        // Let's enforce start time > now.
+        if (isBefore(clickedTime, new Date())) {
+            // Maybe show a toast or shake? For now just ignore.
+            return;
+        }
 
         // Deadline mode: if onDeadlineChange is provided, prioritize it
         if (onDeadlineChange) {
@@ -194,6 +211,22 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
                             return isSameDay(start, day);
                         });
 
+                        // Visual contrast for past:
+                        // If day is entirely before today (start of today), dim whole column.
+                        // If day is today, dim only past hours.
+                        // If day is future, normal.
+
+                        // BUT "moment of creation is threshold".
+                        // So for "today", we calculate the pixel height of "now".
+
+                        let pastHeight = 0;
+                        if (isBefore(day, startOfDay(now))) {
+                            pastHeight = hourHeight * 24; // Full day
+                        } else if (isSameDay(day, now)) {
+                            const minutesSinceStart = differenceInMinutes(now, startOfDay(now));
+                            pastHeight = (minutesSinceStart / 60) * hourHeight;
+                        }
+
                         return (
                             <div
                                 key={day.toString()}
@@ -208,13 +241,32 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
                                     <div key={i} className="border-t border-dotted border-jade-100 absolute w-full pointer-events-none" style={{ top: i * hourHeight }}></div>
                                 ))}
 
+                                {/* Past Overlay */}
+                                <div
+                                    className="absolute left-0 right-0 top-0 bg-gray-100/50 pointer-events-none z-10"
+                                    style={{ height: `${pastHeight}px` }}
+                                >
+                                    {/* Optional diagonal lines or pattern to indicate 'disabled' elegantly?
+                                        Solid semi-transparent gray is usually fine.
+                                        User said "dim the background".
+                                    */}
+                                </div>
+
+                                {/* Current Time Indicator (if today) */}
+                                {isSameDay(day, now) && (
+                                    <div
+                                        className="absolute left-0 right-0 border-t-2 border-red-400 z-20 pointer-events-none opacity-60"
+                                        style={{ top: `${pastHeight}px` }}
+                                    />
+                                )}
+
                                 {/* Events */}
                                 {dayEvents.map(evt => (
                                     <div
                                         key={evt.id}
                                         style={getEventStyle(evt)}
                                         className={cn(
-                                            "absolute rounded p-1 text-[10px] overflow-hidden hover:z-20 hover:shadow-md transition-all border select-none",
+                                            "absolute rounded p-1 text-[10px] overflow-hidden hover:z-30 hover:shadow-md transition-all border select-none z-20", // Events above past overlay
                                             evt.color || "bg-jade-100 border-jade-300 text-jade-700"
                                         )}
                                         onClick={(e) => e.stopPropagation()} // Prevent triggering add
