@@ -189,8 +189,41 @@ class PollService:
         poll.description = poll_update.description
 
         # Update deadline fields
-        if poll_update.deadline_date: poll.deadline_date = poll_update.deadline_date
-        if poll_update.deadline_offset_minutes: poll.deadline_offset_minutes = poll_update.deadline_offset_minutes
+        if poll_update.deadline_date:
+            # Validate one-time deadline: Must be before the next event (earliest future option)
+            if not poll.is_recurring:
+                # Ensure we work with UTC aware datetimes or naive UTC
+                # The DB stores naive UTC (usually). The input might be aware.
+                # Safer: Convert input to UTC, then make naive for comparison if DB is naive.
+
+                # 1. Normalize input to UTC
+                deadline = poll_update.deadline_date
+                if deadline.tzinfo:
+                    deadline = deadline.astimezone(datetime.utcnow().tzinfo).replace(tzinfo=None) # Convert to UTC naive
+
+                now = datetime.utcnow()
+
+                # Find options that are in the future
+                future_options = [opt for opt in poll.options if opt.start_time > now]
+                if future_options:
+                    next_event_start = min(opt.start_time for opt in future_options)
+                    if deadline >= next_event_start:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Deadline cannot be set after the next event begins."
+                        )
+
+            poll.deadline_date = poll_update.deadline_date
+
+        if poll_update.deadline_offset_minutes is not None:
+            if poll.is_recurring:
+                if poll_update.deadline_offset_minutes <= 0:
+                     raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Deadline must be set before the event starts (offset must be positive)."
+                    )
+            poll.deadline_offset_minutes = poll_update.deadline_offset_minutes
+
         if poll_update.deadline_channel_id: poll.deadline_channel_id = poll_update.deadline_channel_id
         if poll_update.deadline_message: poll.deadline_message = poll_update.deadline_message
         if poll_update.deadline_mention_ids: poll.deadline_mention_ids = poll_update.deadline_mention_ids

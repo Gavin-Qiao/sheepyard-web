@@ -14,6 +14,7 @@ import WeeklyScheduler, { SchedulerEvent } from '../../../components/Calendar/We
 import DatePicker from 'react-datepicker'; // For Edit Series date picker
 import "react-datepicker/dist/react-datepicker.css";
 import './datepicker-custom.css';
+import { MentionSelector } from './MentionSelector';
 
 // Helper for classes
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -49,6 +50,11 @@ interface PollDetailData {
     is_recurring: boolean;
     recurrence_pattern?: string;
     recurrence_end_date?: string;
+    deadline_date?: string;
+    deadline_offset_minutes?: number;
+    deadline_channel_id?: string;
+    deadline_message?: string;
+    deadline_mention_ids?: number[];
 }
 
 interface OptionWithVotes extends PollOption {
@@ -73,6 +79,16 @@ const PollDetail: React.FC = () => {
 
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<{ title: string; description: string }>({ title: '', description: '' });
+
+    // Deadline Edit State
+    const [editDeadlineEnabled, setEditDeadlineEnabled] = useState(false);
+    const [editDeadlineDate, setEditDeadlineDate] = useState<Date | null>(null);
+    const [editDeadlineOffset, setEditDeadlineOffset] = useState<number>(60); // Default 60 mins
+    const [editDeadlineChannel, setEditDeadlineChannel] = useState<string>('');
+    const [editDeadlineMessage, setEditDeadlineMessage] = useState('');
+    const [editDeadlineMentions, setEditDeadlineMentions] = useState<number[]>([]);
+    const [channels, setChannels] = useState<{ id: string, name: string }[]>([]);
+
     const [processingEdit, setProcessingEdit] = useState(false);
 
     // Edit Series State
@@ -110,6 +126,16 @@ const PollDetail: React.FC = () => {
             .catch(() => { }); // Ignore error, just wont highlight
     }, []);
 
+    // Fetch Channels when editing starts
+    useEffect(() => {
+        if (isEditing) {
+            fetch('/api/discord/channels')
+                .then(res => res.ok ? res.json() : [])
+                .then(setChannels)
+                .catch(console.error);
+        }
+    }, [isEditing]);
+
     const fetchPoll = () => {
         if (!pollId) return;
         fetch(`/api/polls/${pollId}`)
@@ -120,6 +146,25 @@ const PollDetail: React.FC = () => {
             .then(data => {
                 setPoll(data);
                 setEditForm({ title: data.title, description: data.description || '' });
+
+                // Initialize deadline state
+                if (data.deadline_date || data.deadline_offset_minutes) {
+                    setEditDeadlineEnabled(true);
+                    if (data.deadline_date) setEditDeadlineDate(parseUTCDate(data.deadline_date));
+                    if (data.deadline_offset_minutes) setEditDeadlineOffset(data.deadline_offset_minutes);
+                    setEditDeadlineChannel(data.deadline_channel_id || '');
+                    setEditDeadlineMessage(data.deadline_message || '');
+                    setEditDeadlineMentions(data.deadline_mention_ids || []);
+                } else {
+                    setEditDeadlineEnabled(false);
+                    // Reset defaults
+                    setEditDeadlineDate(null);
+                    setEditDeadlineOffset(60);
+                    setEditDeadlineChannel('');
+                    setEditDeadlineMessage('The deadline has passed! Here is the plan:');
+                    setEditDeadlineMentions([]);
+                }
+
                 // If options exist, set currentDate to start of first option?
                 if (data.options.length > 0) {
                     // Check if there are future options?
@@ -160,21 +205,76 @@ const PollDetail: React.FC = () => {
     };
 
     const handleUpdatePoll = async () => {
-        if (!pollId) return;
+        if (!pollId || !poll) return;
+
+        // Validation for Deadline
+        if (editDeadlineEnabled) {
+            if (!editDeadlineChannel) {
+                alert("Please select a notification channel for the deadline.");
+                return;
+            }
+            if (poll.is_recurring) {
+                if (editDeadlineOffset <= 0) {
+                    alert("Deadline offset must be positive (minutes before event).");
+                    return;
+                }
+            } else {
+                if (!editDeadlineDate) {
+                    alert("Please select a deadline date.");
+                    return;
+                }
+                // Check if date is after next event start
+                const futureOptions = poll.options.filter(o => parseUTCDate(o.start_time) > new Date());
+                if (futureOptions.length > 0) {
+                    const nextEventStart = futureOptions.reduce((min, o) => {
+                        const start = parseUTCDate(o.start_time);
+                        return start < min ? start : min;
+                    }, parseUTCDate(futureOptions[0].start_time));
+
+                    if (editDeadlineDate >= nextEventStart) {
+                        alert("Deadline cannot be set after the next event begins.");
+                        return;
+                    }
+                }
+            }
+        }
+
         setProcessingEdit(true);
         try {
+            const payload: any = {
+                ...editForm,
+                // Include deadline fields if enabled
+                deadline_channel_id: editDeadlineEnabled ? editDeadlineChannel : null,
+                deadline_message: editDeadlineEnabled ? editDeadlineMessage : null,
+                deadline_mention_ids: editDeadlineEnabled ? editDeadlineMentions : null,
+            };
+
+            if (editDeadlineEnabled) {
+                if (poll.is_recurring) {
+                    payload.deadline_offset_minutes = editDeadlineOffset;
+                    payload.deadline_date = null;
+                } else {
+                    payload.deadline_date = editDeadlineDate?.toISOString();
+                    payload.deadline_offset_minutes = null;
+                }
+            }
+
             const res = await fetch(`/api/polls/${pollId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(editForm)
+                body: JSON.stringify(payload)
             });
-            if (!res.ok) throw new Error('Failed to update poll');
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Failed to update poll');
+            }
 
             setIsEditing(false);
             await fetchPoll();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Failed to update poll.');
+            alert(error.message || 'Failed to update poll.');
         } finally {
             setProcessingEdit(false);
         }
@@ -456,6 +556,87 @@ const PollDetail: React.FC = () => {
                                         <Trash2 size={12} />
                                         <span>Delete Event</span>
                                     </button>
+                                </div>
+
+                                {/* Deadline Editor */}
+                                <div className="mt-4 p-4 bg-jade-50 border border-jade-200 rounded-lg">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="flex items-center space-x-2 text-sm font-bold text-jade-800 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={editDeadlineEnabled}
+                                                onChange={e => setEditDeadlineEnabled(e.target.checked)}
+                                                className="rounded text-jade-600 focus:ring-jade-500"
+                                            />
+                                            <span>Set Deadline & Notification</span>
+                                        </label>
+                                    </div>
+
+                                    {editDeadlineEnabled && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: 'auto', opacity: 1 }}
+                                            className="space-y-3 pl-6 border-l-2 border-jade-200"
+                                        >
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-jade-600 mb-1">Notification Channel</label>
+                                                    <select
+                                                        value={editDeadlineChannel}
+                                                        onChange={(e) => setEditDeadlineChannel(e.target.value)}
+                                                        className="w-full text-sm p-2 rounded border border-jade-200 bg-white"
+                                                    >
+                                                        <option value="">Select Channel...</option>
+                                                        {channels.map(c => (
+                                                            <option key={c.id} value={c.id}>#{c.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-jade-600 mb-1">
+                                                        {poll.is_recurring ? "Deadline (Minutes Before)" : "Deadline Date"}
+                                                    </label>
+                                                    {poll.is_recurring ? (
+                                                        <div className="flex items-center space-x-2">
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                value={editDeadlineOffset}
+                                                                onChange={e => setEditDeadlineOffset(parseInt(e.target.value) || 0)}
+                                                                className="w-24 text-sm p-2 rounded border border-jade-200"
+                                                            />
+                                                            <span className="text-xs text-jade-500">mins before event</span>
+                                                        </div>
+                                                    ) : (
+                                                        <DatePicker
+                                                            selected={editDeadlineDate}
+                                                            onChange={date => setEditDeadlineDate(date)}
+                                                            showTimeSelect
+                                                            dateFormat="MMM d, yyyy h:mm aa"
+                                                            className="w-full text-sm p-2 rounded border border-jade-200"
+                                                            placeholderText="Select Date..."
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-jade-600 mb-1">Message</label>
+                                                <textarea
+                                                    value={editDeadlineMessage}
+                                                    onChange={e => setEditDeadlineMessage(e.target.value)}
+                                                    className="w-full text-sm p-2 rounded border border-jade-200 h-16"
+                                                    placeholder="Notification message..."
+                                                />
+                                            </div>
+                                            <div>
+                                                <MentionSelector
+                                                    label="Also mention:"
+                                                    selectedUserIds={editDeadlineMentions}
+                                                    onChange={setEditDeadlineMentions}
+                                                />
+                                            </div>
+                                        </motion.div>
+                                    )}
                                 </div>
 
                                 {isEditingSeries && (
