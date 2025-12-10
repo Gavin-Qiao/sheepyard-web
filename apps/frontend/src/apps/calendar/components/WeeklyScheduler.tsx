@@ -159,13 +159,13 @@ const WeeklyScheduler: React.FC<WeeklySchedulerProps> = ({
             <div className="flex items-center justify-between p-4 border-b border-jade-200 bg-jade-50/50">
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2">
-                        <button onClick={() => onDateChange(addDays(currentDate, -7))} className="p-1.5 hover:bg-jade-100 rounded text-jade-600">
+                        <button type="button" onClick={() => onDateChange(addDays(currentDate, -7))} className="p-1.5 hover:bg-jade-100 rounded text-jade-600">
                             <ChevronLeft size={20} />
                         </button>
                         <span className="text-sm font-bold text-ink w-32 text-center">
                             {format(currentDate, "'Week of' MMM d")}
                         </span>
-                        <button onClick={() => onDateChange(addDays(currentDate, 7))} className="p-1.5 hover:bg-jade-100 rounded text-jade-600">
+                        <button type="button" onClick={() => onDateChange(addDays(currentDate, 7))} className="p-1.5 hover:bg-jade-100 rounded text-jade-600">
                             <ChevronRight size={20} />
                         </button>
                     </div>
