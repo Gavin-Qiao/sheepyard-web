@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from 'date-fns';
+import { parseUTCDate } from '../../../utils/dateUtils';
 import { Loader2, Save, Repeat, Bot, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -108,8 +109,8 @@ const PollCreate: React.FC = () => {
             // Options
             if (editingPoll.options && editingPoll.options.length > 0) {
                 const mappedOptions = editingPoll.options.map((o: any) => ({
-                    start_time: new Date(o.start_time),
-                    end_time: new Date(o.end_time)
+                    start_time: parseUTCDate(o.start_time),
+                    end_time: parseUTCDate(o.end_time)
                 }));
                 setOptions(mappedOptions);
                 if (mappedOptions.length > 0) {
@@ -130,16 +131,16 @@ const PollCreate: React.FC = () => {
             }
 
             if (editingPoll.recurrence_end_date) {
-                setRecurrenceEndDate(new Date(editingPoll.recurrence_end_date));
+                setRecurrenceEndDate(parseUTCDate(editingPoll.recurrence_end_date));
             }
 
             // Deadline Date
             if (editingPoll.deadline_date) {
-                setDeadlineDate(new Date(editingPoll.deadline_date));
+                setDeadlineDate(parseUTCDate(editingPoll.deadline_date));
             } else if (editingPoll.deadline_offset_minutes && editingPoll.options?.length > 0) {
                 // Reconstruct deadline from offset
                 // This assumes offset is relative to the FIRST option start time
-                const firstStart = new Date(editingPoll.options[0].start_time);
+                const firstStart = parseUTCDate(editingPoll.options[0].start_time);
                 setDeadlineDate(new Date(firstStart.getTime() - editingPoll.deadline_offset_minutes * 60 * 1000));
             }
         }

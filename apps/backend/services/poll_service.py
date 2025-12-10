@@ -242,40 +242,68 @@ class PollService:
 
         # Handle Standard Option List Update (non-recurring or full override)
         elif poll_update.options is not None:
-             # Logic: Check if options allow preserving votes or need full reset
-             # If strictly equal (same number, same start/ends), preserve
-             # Else, delete all and recreate (Vote loss warning implicit in UI)
+             # Logic: Check if options allow preserving votes or need modification
+             # Compare by matching timestamps (rounded to minute) to preserve votes
+             
+             def to_utc_minute(dt):
+                 """Convert datetime to UTC timestamp rounded to the nearest minute."""
+                 if dt.tzinfo is None:
+                     ts = dt.replace(tzinfo=timezone.utc).timestamp()
+                 else:
+                     ts = dt.timestamp()
+                 # Round to nearest minute (60 seconds)
+                 return round(ts / 60) * 60
              
              existing_sorted = sorted(poll.options, key=lambda x: x.start_time)
              new_sorted = sorted(poll_update.options, key=lambda x: x.start_time)
              
+             # Check if options are identical (same count and same time slots)
              is_identical = len(existing_sorted) == len(new_sorted)
              if is_identical:
                  for i in range(len(existing_sorted)):
-                     # Compare timestamps using .timestamp() to avoid naive/aware mismatch errors
-                     # SQLite often returns naive datetimes (UTC), while Pydantic returns aware ones.
+                     start_diff = abs(to_utc_minute(existing_sorted[i].start_time) - to_utc_minute(new_sorted[i].start_time))
+                     end_diff = abs(to_utc_minute(existing_sorted[i].end_time) - to_utc_minute(new_sorted[i].end_time))
                      
-                     def to_utc_ts(dt):
-                         # If naive, assume UTC (standard for backend DBs)
-                         if dt.tzinfo is None:
-                             return dt.replace(tzinfo=timezone.utc).timestamp()
-                         return dt.timestamp()
-
-                     start_diff = abs(to_utc_ts(existing_sorted[i].start_time) - to_utc_ts(new_sorted[i].start_time))
-                     end_diff = abs(to_utc_ts(existing_sorted[i].end_time) - to_utc_ts(new_sorted[i].end_time))
-                     
-                     if start_diff > 1 or end_diff > 1:
+                     # Allow up to 1 minute difference (60 seconds after rounding)
+                     if start_diff > 60 or end_diff > 60:
                          is_identical = False
                          break
              
-             if not is_identical:
-                 # Full replacement
-                 # 1. Delete all existing options (cascade deletes votes)
+             if is_identical:
+                 # Options haven't changed - just update labels if needed, preserve votes
+                 for i in range(len(existing_sorted)):
+                     existing_sorted[i].label = new_sorted[i].label
+             else:
+                 # Options have changed - need to reconcile
+                 # Build a map of existing options by their time signature for vote preservation
+                 existing_by_time = {}
                  for opt in poll.options:
-                     self.session.delete(opt)
+                     time_key = (to_utc_minute(opt.start_time), to_utc_minute(opt.end_time))
+                     existing_by_time[time_key] = opt
                  
-                 # 2. Add new options
-                 for opt_create in poll_update.options:
+                 # Track which existing options we've matched
+                 matched_existing_ids = set()
+                 new_options_to_add = []
+                 
+                 for new_opt in poll_update.options:
+                     time_key = (to_utc_minute(new_opt.start_time), to_utc_minute(new_opt.end_time))
+                     
+                     if time_key in existing_by_time:
+                         # Match found - update label, keep votes
+                         existing_opt = existing_by_time[time_key]
+                         existing_opt.label = new_opt.label
+                         matched_existing_ids.add(existing_opt.id)
+                     else:
+                         # New option - needs to be created
+                         new_options_to_add.append(new_opt)
+                 
+                 # Delete unmatched existing options (these are the ones user removed)
+                 for opt in poll.options:
+                     if opt.id not in matched_existing_ids:
+                         self.session.delete(opt)
+                 
+                 # Add new options
+                 for opt_create in new_options_to_add:
                      new_opt = PollOption(
                          poll_id=poll.id,
                          label=opt_create.label,

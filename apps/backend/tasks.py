@@ -186,7 +186,13 @@ def process_recurring_instance(session: Session, poll: Poll, option: PollOption)
         # 3. Send Notification
         event_url = f"{settings.FRONTEND_URL}/apps/calendar/events/{poll.id}"
 
-        date_label = option.start_time.strftime("%A, %b %d @ %H:%M")
+        # Use Discord's native timestamp formatting for proper timezone display
+        from datetime import timezone as tz
+        start_dt = option.start_time
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=tz.utc)
+        start_timestamp = int(start_dt.timestamp())
+        date_label = f"<t:{start_timestamp}:f>"
 
         discord_service.send_deadline_notification(
             channel_id=poll.deadline_channel_id,

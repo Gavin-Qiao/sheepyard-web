@@ -264,7 +264,7 @@ const PollDetail: React.FC = () => {
     // Prepare calendar events for MonthView
     const calendarEvents = poll.options.map(opt => ({
         date: parseUTCDate(opt.start_time),
-        value: Math.min(1, Math.max(0.2, opt.votes?.length ? opt.votes.length / 5 : 0.5)), // Intensity based on votes
+        value: opt.votes?.length || 0, // Pass raw vote count for display
         hasMarker: true,
         color: opt.votes?.some(v => v.user?.id === currentUser?.id) ? 'bg-jade-500' : 'bg-jade-300'
     }));

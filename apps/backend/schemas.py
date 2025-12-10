@@ -1,9 +1,40 @@
 from typing import List, Optional, Any
 from datetime import datetime, timezone
 from sqlmodel import SQLModel
-from pydantic import validator
+from pydantic import validator, field_serializer
 
-class UserRead(SQLModel):
+def serialize_utc_datetime(dt: datetime) -> str:
+    """Serialize datetime to ISO format with 'Z' suffix for UTC.
+    
+    Backend stores naive UTC datetimes. This ensures they are always
+    serialized with 'Z' suffix so frontend JavaScript correctly interprets
+    them as UTC, not local time.
+    """
+    if dt is None:
+        return None
+    # If naive, assume UTC and add timezone info
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    # Format as ISO and ensure 'Z' suffix (replace +00:00 with Z)
+    iso_str = dt.isoformat()
+    return iso_str.replace('+00:00', 'Z')
+
+class UTCModel(SQLModel):
+    """Base model that ensures all datetime fields serialize with 'Z' suffix.
+    
+    This prevents timezone bugs where frontend's new Date() interprets
+    naive datetime strings as local time instead of UTC.
+    """
+    
+    @field_serializer('*', mode='wrap')
+    def serialize_all_datetimes(self, value: Any, handler, info):
+        # Only handle datetime fields
+        if isinstance(value, datetime):
+            return serialize_utc_datetime(value)
+        # For non-datetime fields, use default serialization
+        return handler(value)
+
+class UserRead(UTCModel):
     id: int
     username: str
     display_name: Optional[str] = None
@@ -40,9 +71,12 @@ class PollOptionCreate(PollOptionBase):
              raise ValueError("start_time must be in the future")
         return v
 
-class PollOptionRead(PollOptionBase):
+class PollOptionRead(UTCModel):
     id: int
     poll_id: int
+    label: str
+    start_time: datetime
+    end_time: datetime
 
 class PollBase(SQLModel):
     title: str
@@ -77,22 +111,26 @@ class PollCreate(PollBase):
             raise ValueError("Poll must have at least one option (as template or explicit list)")
         return v
 
-class PollRead(PollBase):
+class PollRead(UTCModel):
     id: int
     creator_id: int
     created_at: datetime
     is_recurring: bool
     recurrence_pattern: Optional[str]
     recurrence_end_date: Optional[datetime]
+    title: str
+    description: Optional[str] = None
+    deadline_date: Optional[datetime] = None
+    deadline_offset_minutes: Optional[int] = None
+    deadline_channel_id: Optional[str] = None
+    deadline_message: Optional[str] = None
+    deadline_mention_ids: Optional[List[int]] = None
     options: List[PollOptionRead]
-
-    # Deadline fields explicitly in Read model if PollBase doesn't cover it properly due to inheritance details
-    # But PollBase has them now.
 
 class VoteCreate(SQLModel):
     poll_option_id: int
 
-class VoteRead(SQLModel):
+class VoteRead(UTCModel):
     poll_option_id: int
     user: UserRead
 

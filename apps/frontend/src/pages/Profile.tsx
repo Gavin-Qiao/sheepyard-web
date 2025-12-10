@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { addDays, addMonths, addWeeks, getDay } from 'date-fns';
+import { parseUTCDate } from '../utils/dateUtils';
 import { Background } from '../components/Background';
 import { motion } from 'framer-motion';
 import { LogOut, ArrowLeft, Share2 } from 'lucide-react';
@@ -212,7 +213,7 @@ const Profile: React.FC = () => {
 
     // Convert blocks to CalendarEvents for Month/Year view
     const calendarEvents = blocks.map(b => ({
-        date: new Date(b.start_time),
+        date: parseUTCDate(b.start_time),
         value: 1, // Simple binary intensity for unavailability
         color: 'bg-red-200' // Visual indicator for busy
     }));

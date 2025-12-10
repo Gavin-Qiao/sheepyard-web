@@ -111,17 +111,32 @@ class DiscordService:
             }
         ]
 
-        # Add Time info
+        # Add Time info using Discord's native timestamp formatting
+        # Discord timestamps automatically display in each user's local timezone
         if poll.options:
              sorted_options = sorted(poll.options, key=lambda x: x.start_time)
              first_option = sorted_options[0]
-             start_str = first_option.start_time.strftime("%a, %b %d @ %H:%M")
+             
+             # Convert naive UTC datetime to Unix timestamp
+             # The datetime is stored as naive UTC, so we interpret it as UTC
+             from datetime import timezone as tz
+             start_dt = first_option.start_time
+             if start_dt.tzinfo is None:
+                 start_dt = start_dt.replace(tzinfo=tz.utc)
+             start_timestamp = int(start_dt.timestamp())
+             
+             end_dt = first_option.end_time
+             if end_dt.tzinfo is None:
+                 end_dt = end_dt.replace(tzinfo=tz.utc)
+             end_timestamp = int(end_dt.timestamp())
 
              if poll.is_recurring:
-                  time_value = f"Starts {start_str} (Recurring)"
+                  # Use 'f' format: "November 28, 2024 9:01 AM"
+                  time_value = f"Starts <t:{start_timestamp}:f> (Recurring)"
              else:
-                  end_str = first_option.end_time.strftime("%H:%M")
-                  time_value = f"{start_str} - {end_str}"
+                  # Show full date and time for start, just time for end
+                  # 'f' = full date and time, 't' = short time
+                  time_value = f"<t:{start_timestamp}:f> - <t:{end_timestamp}:t>"
 
              fields.insert(0, {
                  "name": "When",
