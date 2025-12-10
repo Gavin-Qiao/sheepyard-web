@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from 'date-fns';
@@ -53,13 +53,16 @@ type RecurrenceType = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM' | 'AI';
 
 const PollCreate: React.FC = () => {
     const navigate = useNavigate();
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
+    const location = useLocation();
+    const editingPoll = location.state?.editingPoll;
+
+    const [title, setTitle] = useState(editingPoll?.title || '');
+    const [description, setDescription] = useState(editingPoll?.description || '');
     const [options, setOptions] = useState<PollOptionInput[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Recurrence State
-    const [isRecurring, setIsRecurring] = useState(false);
+    const [isRecurring, setIsRecurring] = useState(editingPoll?.is_recurring || false);
     const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>('WEEKLY');
     const [recurrenceEndMode, setRecurrenceEndMode] = useState<'DATE' | 'COUNT'>('DATE');
     const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | null>(new Date(new Date().setMonth(new Date().getMonth() + 1)));
@@ -67,11 +70,11 @@ const PollCreate: React.FC = () => {
     const [customDays, setCustomDays] = useState<string[]>([]);
 
     // Deadline State
-    const [enableDeadline, setEnableDeadline] = useState(false);
+    const [enableDeadline, setEnableDeadline] = useState(!!editingPoll?.deadline_date || !!editingPoll?.deadline_offset_minutes);
     const [deadlineDate, setDeadlineDate] = useState<Date | null>(null);
-    const [deadlineChannelId, setDeadlineChannelId] = useState<string>('');
-    const [deadlineMessage, setDeadlineMessage] = useState('The deadline has passed! Here is the plan:');
-    const [deadlineMentions, setDeadlineMentions] = useState<number[]>([]);
+    const [deadlineChannelId, setDeadlineChannelId] = useState<string>(editingPoll?.deadline_channel_id || '');
+    const [deadlineMessage, setDeadlineMessage] = useState(editingPoll?.deadline_message || 'The deadline has passed! Here is the plan:');
+    const [deadlineMentions, setDeadlineMentions] = useState<number[]>(editingPoll?.deadline_mention_ids || []);
     const [channels, setChannels] = useState<Channel[]>([]);
 
 
@@ -99,7 +102,48 @@ const PollCreate: React.FC = () => {
             .then(res => res.json())
             .then(data => setChannels(data))
             .catch(err => console.error("Failed to fetch channels", err));
-    }, []);
+
+        // Initialize from editingPoll if present
+        if (editingPoll) {
+            // Options
+            if (editingPoll.options && editingPoll.options.length > 0) {
+                const mappedOptions = editingPoll.options.map((o: any) => ({
+                    start_time: new Date(o.start_time),
+                    end_time: new Date(o.end_time)
+                }));
+                setOptions(mappedOptions);
+                if (mappedOptions.length > 0) {
+                    setCurrentSchedulerDate(mappedOptions[0].start_time);
+
+                    // Calculate duration guess from first option
+                    const diff = (mappedOptions[0].end_time.getTime() - mappedOptions[0].start_time.getTime()) / (1000 * 60);
+                    if (diff > 0) setDuration(diff);
+                }
+            }
+
+            // Recurrence Pattern parsing - crude logic for MVP
+            if (editingPoll.recurrence_pattern) {
+                if (editingPoll.recurrence_pattern.includes('DAILY')) setRecurrenceType('DAILY');
+                else if (editingPoll.recurrence_pattern.includes('MONTHLY')) setRecurrenceType('MONTHLY');
+                else if (editingPoll.recurrence_pattern.includes('WEEKLY')) setRecurrenceType('WEEKLY');
+                // Custom days parsing would require regex on BYDAY, skipping for now
+            }
+
+            if (editingPoll.recurrence_end_date) {
+                setRecurrenceEndDate(new Date(editingPoll.recurrence_end_date));
+            }
+
+            // Deadline Date
+            if (editingPoll.deadline_date) {
+                setDeadlineDate(new Date(editingPoll.deadline_date));
+            } else if (editingPoll.deadline_offset_minutes && editingPoll.options?.length > 0) {
+                // Reconstruct deadline from offset
+                // This assumes offset is relative to the FIRST option start time
+                const firstStart = new Date(editingPoll.options[0].start_time);
+                setDeadlineDate(new Date(firstStart.getTime() - editingPoll.deadline_offset_minutes * 60 * 1000));
+            }
+        }
+    }, [editingPoll]);
 
     const handleAddEvent = (start: Date, end: Date) => {
         // If recurring, only one option allowed as template
@@ -241,13 +285,23 @@ const PollCreate: React.FC = () => {
                 }
             }
 
-            const res = await fetch('/api/polls', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!res.ok) throw new Error('Failed to create poll');
+            if (editingPoll?.id) {
+                // Update existing poll
+                const res = await fetch(`/api/polls/${editingPoll.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error('Failed to update poll');
+            } else {
+                // Create new poll
+                const res = await fetch('/api/polls', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error('Failed to create poll');
+            }
 
             // Record mention history implicitly?
             // The backend doesn't automatically do it on create, but we have an API for it or we rely on the `MentionService` being called manually.
@@ -303,7 +357,7 @@ const PollCreate: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white/60 backdrop-blur-md border border-jade-100 rounded-xl p-8 shadow-sm"
             >
-                <h2 className="text-2xl font-serif text-ink mb-6">Create New Gathering</h2>
+                <h2 className="text-2xl font-serif text-ink mb-6">{editingPoll ? `Edit: ${editingPoll.title}` : 'Create New Gathering'}</h2>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
@@ -554,7 +608,7 @@ const PollCreate: React.FC = () => {
                                                 </p>
                                             )}
                                             {/* Secondary Scheduler for deadline selection */}
-                                            <div className={cn("h-[300px] mt-2 rounded-lg transition-all duration-300", isInvalidDeadline ? "bg-red-50 ring-2 ring-red-400" : "")}>
+                                            <div className={cn("h-[500px] mt-2 rounded-lg transition-all duration-300", isInvalidDeadline ? "bg-red-50 ring-2 ring-red-400" : "")}>
                                                 <WeeklyScheduler
                                                     events={schedulerEvents}
                                                     currentDate={currentSchedulerDate}
@@ -629,7 +683,7 @@ const PollCreate: React.FC = () => {
                             className="flex items-center space-x-2 bg-jade-600 text-white px-6 py-2.5 rounded-lg hover:bg-jade-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
                         >
                             {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                            <span>Create Poll</span>
+                            <span>{editingPoll ? 'Update Poll' : 'Create Poll'}</span>
                         </button>
                     </div>
                 </form>

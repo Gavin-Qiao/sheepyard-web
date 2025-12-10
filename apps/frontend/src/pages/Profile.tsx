@@ -370,6 +370,11 @@ const Profile: React.FC = () => {
                                         setCurrentDate(date);
                                         setViewMode('week');
                                     }}
+                                    onMonthChange={(date) => setCurrentDate(date)}
+                                    onYearChange={(date) => {
+                                        setCurrentDate(date);
+                                        setViewMode('year');
+                                    }}
                                     events={calendarEvents}
                                     minDate={new Date()}
                                 />
@@ -381,6 +386,7 @@ const Profile: React.FC = () => {
                                         setCurrentDate(date);
                                         setViewMode('month');
                                     }}
+                                    onYearChange={(date) => setCurrentDate(date)}
                                     events={calendarEvents}
                                     minDate={new Date()}
                                 />

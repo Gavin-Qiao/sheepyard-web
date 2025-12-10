@@ -8,7 +8,7 @@ from services.notification import NotificationService, NoOpNotificationService
 import logging
 from dateutil import rrule
 from dateutil.parser import parse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +195,6 @@ class PollService:
         if poll_update.deadline_message: poll.deadline_message = poll_update.deadline_message
         if poll_update.deadline_mention_ids: poll.deadline_mention_ids = poll_update.deadline_mention_ids
 
-        # Handle Series Update
         if poll_update.recurrence_pattern and poll_update.apply_changes_from:
             # User wants to modify the series from this date
             cutoff = poll_update.apply_changes_from
@@ -240,6 +239,50 @@ class PollService:
             for opt in new_options_models:
                 opt.poll_id = poll.id
                 self.session.add(opt)
+
+        # Handle Standard Option List Update (non-recurring or full override)
+        elif poll_update.options is not None:
+             # Logic: Check if options allow preserving votes or need full reset
+             # If strictly equal (same number, same start/ends), preserve
+             # Else, delete all and recreate (Vote loss warning implicit in UI)
+             
+             existing_sorted = sorted(poll.options, key=lambda x: x.start_time)
+             new_sorted = sorted(poll_update.options, key=lambda x: x.start_time)
+             
+             is_identical = len(existing_sorted) == len(new_sorted)
+             if is_identical:
+                 for i in range(len(existing_sorted)):
+                     # Compare timestamps using .timestamp() to avoid naive/aware mismatch errors
+                     # SQLite often returns naive datetimes (UTC), while Pydantic returns aware ones.
+                     
+                     def to_utc_ts(dt):
+                         # If naive, assume UTC (standard for backend DBs)
+                         if dt.tzinfo is None:
+                             return dt.replace(tzinfo=timezone.utc).timestamp()
+                         return dt.timestamp()
+
+                     start_diff = abs(to_utc_ts(existing_sorted[i].start_time) - to_utc_ts(new_sorted[i].start_time))
+                     end_diff = abs(to_utc_ts(existing_sorted[i].end_time) - to_utc_ts(new_sorted[i].end_time))
+                     
+                     if start_diff > 1 or end_diff > 1:
+                         is_identical = False
+                         break
+             
+             if not is_identical:
+                 # Full replacement
+                 # 1. Delete all existing options (cascade deletes votes)
+                 for opt in poll.options:
+                     self.session.delete(opt)
+                 
+                 # 2. Add new options
+                 for opt_create in poll_update.options:
+                     new_opt = PollOption(
+                         poll_id=poll.id,
+                         label=opt_create.label,
+                         start_time=opt_create.start_time,
+                         end_time=opt_create.end_time
+                     )
+                     self.session.add(new_opt)
 
         self.session.add(poll)
         self.session.commit()

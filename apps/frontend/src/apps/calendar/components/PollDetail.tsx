@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { format, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns';
+import { format } from 'date-fns';
 import { parseUTCDate } from '../../../utils/dateUtils';
-import { Check, Loader2, User as UserIcon, Edit2, X, Trash2, Save, Calendar, List, Clock, ChevronLeft, ChevronRight, Share2 } from 'lucide-react';
+import { Check, Loader2, User as UserIcon, Edit2, Trash2, Calendar, List, Clock, Share2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -11,9 +11,6 @@ import ConfirmModal from './Modal';
 import ShareModal from './ShareModal';
 import MonthView from '../../../components/Calendar/MonthView';
 import WeeklyScheduler, { SchedulerEvent } from '../../../components/Calendar/WeeklyScheduler'; // Replaced PollWeekView
-import DatePicker from 'react-datepicker'; // For Edit Series date picker
-import "react-datepicker/dist/react-datepicker.css";
-import './datepicker-custom.css';
 
 // Helper for classes
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -49,6 +46,11 @@ interface PollDetailData {
     is_recurring: boolean;
     recurrence_pattern?: string;
     recurrence_end_date?: string;
+    deadline_date?: string;
+    deadline_offset_minutes?: number;
+    deadline_channel_id?: string;
+    deadline_message?: string;
+    deadline_mention_ids?: number[];
 }
 
 interface OptionWithVotes extends PollOption {
@@ -71,18 +73,11 @@ const PollDetail: React.FC = () => {
     const [viewMode, setViewMode] = useState<'list' | 'month' | 'week'>('week');
     const [currentDate, setCurrentDate] = useState(new Date()); // For Calendar Views
 
-    const [isEditing, setIsEditing] = useState(false);
-    const [editForm, setEditForm] = useState<{ title: string; description: string }>({ title: '', description: '' });
-    const [processingEdit, setProcessingEdit] = useState(false);
-
-    // Edit Series State
-    const [isEditingSeries, setIsEditingSeries] = useState(false);
-    const [editSeriesDate, setEditSeriesDate] = useState<Date>(new Date());
-    const [newPattern, setNewPattern] = useState<string>('WEEKLY'); // Simplified
+    // New Option State (for List view fallback)
 
     // New Option State (for List view fallback)
-    const [newOption, setNewOption] = useState<{ label: string; start_time: string; end_time: string }>({ label: '', start_time: '', end_time: '' });
-    const [addingOption, setAddingOption] = useState(false);
+
+
 
     // Modal State
     const [modalConfig, setModalConfig] = useState<{
@@ -119,7 +114,6 @@ const PollDetail: React.FC = () => {
             })
             .then(data => {
                 setPoll(data);
-                setEditForm({ title: data.title, description: data.description || '' });
                 // If options exist, set currentDate to start of first option?
                 if (data.options.length > 0) {
                     // Check if there are future options?
@@ -159,69 +153,13 @@ const PollDetail: React.FC = () => {
         }
     };
 
-    const handleUpdatePoll = async () => {
-        if (!pollId) return;
-        setProcessingEdit(true);
-        try {
-            const res = await fetch(`/api/polls/${pollId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(editForm)
-            });
-            if (!res.ok) throw new Error('Failed to update poll');
-
-            setIsEditing(false);
-            await fetchPoll();
-        } catch (error) {
-            console.error(error);
-            alert('Failed to update poll.');
-        } finally {
-            setProcessingEdit(false);
-        }
+    const handleEditRecreate = () => {
+        if (!poll) return;
+        // Navigate to Create page with poll data
+        navigate('../create', { state: { editingPoll: poll } });
     };
 
-    const handleUpdateSeries = async () => {
-        if (!pollId) return;
 
-        const confirmUpdate = async () => {
-            setModalConfig(prev => ({ ...prev, isOpen: false }));
-            setProcessingEdit(true);
-            try {
-                // Construct RRULE based on simple selection for now
-                const rrule = `FREQ=${newPattern}`; // Simplify for MVP
-
-                const payload = {
-                    ...editForm,
-                    recurrence_pattern: rrule,
-                    apply_changes_from: editSeriesDate.toISOString()
-                };
-
-                const res = await fetch(`/api/polls/${pollId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (!res.ok) throw new Error('Failed to update series');
-
-                setIsEditingSeries(false);
-                await fetchPoll();
-            } catch (error) {
-                console.error(error);
-                alert('Failed to update series.');
-            } finally {
-                setProcessingEdit(false);
-            }
-        };
-
-        setModalConfig({
-            isOpen: true,
-            title: "Update Recurring Series",
-            message: `Are you sure you want to change the schedule from ${format(editSeriesDate, 'MMM d')}? Future events will be regenerated.`,
-            onConfirm: confirmUpdate,
-            variant: 'warning',
-            confirmText: "Update Series"
-        });
-    };
 
     const handleDeletePoll = async () => {
         if (!pollId) return;
@@ -249,39 +187,7 @@ const PollDetail: React.FC = () => {
         });
     };
 
-    const handleAddOptionList = async () => {
-        if (!pollId) return;
-        if (!newOption.label || !newOption.start_time || !newOption.end_time) {
-            alert("Please fill in all fields for the new option.");
-            return;
-        }
-        setAddingOption(true);
-        try {
-            // FIX: Convert datetime-local strings to ISO UTC strings
-            const start = new Date(newOption.start_time).toISOString();
-            const end = new Date(newOption.end_time).toISOString();
 
-            const res = await fetch(`/api/polls/${pollId}/options`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    label: newOption.label,
-                    start_time: start,
-                    end_time: end
-                })
-            });
-            if (!res.ok) throw new Error('Failed to add option');
-
-            // Reset and refresh
-            setNewOption({ label: '', start_time: '', end_time: '' });
-            await fetchPoll();
-        } catch (error) {
-            console.error(error);
-            alert('Failed to add option.');
-        } finally {
-            setAddingOption(false);
-        }
-    };
 
     const handleAddOptionScheduler = async (start: Date, end: Date) => {
         if (!pollId) return;
@@ -330,22 +236,7 @@ const PollDetail: React.FC = () => {
         });
     };
 
-    // Navigation handlers
-    const handleNext = () => {
-        if (viewMode === 'month') {
-            setCurrentDate(addMonths(currentDate, 1));
-        } else if (viewMode === 'week') {
-            setCurrentDate(addWeeks(currentDate, 1));
-        }
-    };
 
-    const handlePrev = () => {
-        if (viewMode === 'month') {
-            setCurrentDate(subMonths(currentDate, 1));
-        } else if (viewMode === 'week') {
-            setCurrentDate(subWeeks(currentDate, 1));
-        }
-    };
 
     if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-jade-500" /></div>;
     if (error || !poll) return <div className="text-center py-12 text-red-400">Error: {error || 'Poll not found'}</div>;
@@ -405,114 +296,13 @@ const PollDetail: React.FC = () => {
             >
                 <div className="flex justify-between items-start">
                     <div className="flex-1 mr-4">
-                        {isEditing ? (
-                            <div className="space-y-3">
-                                <input
-                                    type="text"
-                                    value={editForm.title}
-                                    onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
-                                    className="w-full text-3xl font-serif text-ink bg-white/50 border border-jade-200 rounded p-2 focus:ring-2 focus:ring-jade-400 focus:outline-none"
-                                    placeholder="Event Title"
-                                />
-                                <textarea
-                                    value={editForm.description}
-                                    onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                                    className="w-full text-sm text-jade-700 bg-white/50 border border-jade-200 rounded p-2 focus:ring-2 focus:ring-jade-400 focus:outline-none"
-                                    placeholder="Description (optional)"
-                                    rows={2}
-                                />
-                                <div className="flex space-x-2">
-                                    <button
-                                        onClick={handleUpdatePoll}
-                                        disabled={processingEdit}
-                                        className="flex items-center space-x-1 px-3 py-1 bg-jade-600 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-jade-700 disabled:opacity-50"
-                                    >
-                                        {processingEdit ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                                        <span>Save</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setIsEditing(false)}
-                                        className="flex items-center space-x-1 px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-bold uppercase tracking-wider hover:bg-gray-300"
-                                    >
-                                        <X size={12} />
-                                        <span>Cancel</span>
-                                    </button>
-
-                                    {poll.is_recurring && (
-                                        <button
-                                            onClick={() => setIsEditingSeries(true)}
-                                            className="flex items-center space-x-1 px-3 py-1 bg-jade-100 text-jade-600 rounded text-xs font-bold uppercase tracking-wider hover:bg-jade-200"
-                                        >
-                                            <Clock size={12} />
-                                            <span>Edit Series</span>
-                                        </button>
-                                    )}
-
-                                    <div className="flex-1"></div>
-                                    <button
-                                        onClick={handleDeletePoll}
-                                        className="flex items-center space-x-1 px-3 py-1 bg-red-100 text-red-600 rounded text-xs font-bold uppercase tracking-wider hover:bg-red-200 ml-auto"
-                                    >
-                                        <Trash2 size={12} />
-                                        <span>Delete Event</span>
-                                    </button>
-                                </div>
-
-                                {isEditingSeries && (
-                                    <div className="mt-4 p-4 bg-jade-50 border border-jade-200 rounded-lg">
-                                        <h4 className="text-sm font-bold text-jade-800 mb-2">Modify Series</h4>
-                                        <div className="flex items-end gap-4">
-                                            <div>
-                                                <label className="text-xs text-jade-600 block mb-1">Effective Date</label>
-                                                <DatePicker
-                                                    selected={editSeriesDate}
-                                                    onChange={date => date && setEditSeriesDate(date)}
-                                                    className="w-full text-sm p-1 border rounded"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs text-jade-600 block mb-1">New Pattern</label>
-                                                <select
-                                                    value={newPattern}
-                                                    onChange={e => setNewPattern(e.target.value)}
-                                                    className="text-sm p-1.5 border rounded w-32"
-                                                >
-                                                    <option value="DAILY">Daily</option>
-                                                    <option value="WEEKLY">Weekly</option>
-                                                    <option value="MONTHLY">Monthly</option>
-                                                </select>
-                                            </div>
-                                            <button
-                                                onClick={handleUpdateSeries}
-                                                disabled={processingEdit}
-                                                className="bg-jade-600 text-white text-xs px-3 py-1.5 rounded hover:bg-jade-700"
-                                            >
-                                                Update Series
-                                            </button>
-                                            <button
-                                                onClick={() => setIsEditingSeries(false)}
-                                                className="text-gray-500 text-xs hover:text-gray-700"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                        <p className="text-[10px] text-jade-500 mt-2">
-                                            Warning: This will delete all time slots starting from the selected date and regenerate them.
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <>
-                                <h2 className="text-3xl font-serif text-ink mb-2">{poll.title}</h2>
-                                {poll.description && (
-                                    <p className="text-jade-700 font-sans text-sm max-w-2xl whitespace-pre-line">{poll.description}</p>
-                                )}
-                            </>
+                        <h2 className="text-3xl font-serif text-ink mb-2">{poll.title}</h2>
+                        {poll.description && (
+                            <p className="text-jade-700 font-sans text-sm max-w-2xl whitespace-pre-line">{poll.description}</p>
                         )}
                     </div>
 
-                    {!isEditing && isCreator && (
+                    {isCreator && (
                         <div className="flex items-center space-x-1">
                             <button
                                 onClick={() => setShareModalOpen(true)}
@@ -522,13 +312,22 @@ const PollDetail: React.FC = () => {
                                 <Share2 size={18} />
                             </button>
                             {isCreator && (
-                                <button
-                                    onClick={() => setIsEditing(true)}
-                                    className="p-2 text-jade-400 hover:text-jade-600 hover:bg-jade-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                                    title="Edit Event"
-                                >
-                                    <Edit2 size={18} />
-                                </button>
+                                <>
+                                    <button
+                                        onClick={handleEditRecreate}
+                                        className="p-2 text-jade-400 hover:text-jade-600 hover:bg-jade-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                        title="Edit Event"
+                                    >
+                                        <Edit2 size={18} />
+                                    </button>
+                                    <button
+                                        onClick={handleDeletePoll}
+                                        className="p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                        title="Delete Event"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                </>
                             )}
                         </div>
                     )}
@@ -594,17 +393,6 @@ const PollDetail: React.FC = () => {
             {/* Views */}
             {viewMode === 'month' && (
                 <>
-                    <div className="flex justify-between items-center mb-2">
-                        <button onClick={handlePrev} className="p-1 hover:bg-jade-100 rounded text-jade-600">
-                            <ChevronLeft size={20} />
-                        </button>
-                        <span className="text-sm font-bold text-ink w-32 text-center">
-                            {format(currentDate, 'MMM yyyy')}
-                        </span>
-                        <button onClick={handleNext} className="p-1 hover:bg-jade-100 rounded text-jade-600">
-                            <ChevronRight size={20} />
-                        </button>
-                    </div>
                     <MonthView
                         events={calendarEvents}
                         currentDate={currentDate}
@@ -612,17 +400,8 @@ const PollDetail: React.FC = () => {
                             setCurrentDate(date);
                             setViewMode('week');
                         }}
-                        minDate={new Date()} // Optional, if you want to prevent looking way back? Actually for viewing, we might want to see past. So maybe not enforcing minDate here for viewing. But user asked for global validation. Let's keep minDate for interaction, but for viewing it might be annoyance.
-                    // Actually the user said "prevent past events from being created or selected".
-                    // In Poll Detail, we are mostly viewing.
-                    // I will pass minDate={new Date(0)} (very old) or just omit it if I want to allow viewing past.
-                    // But wait, the MonthView component visually disables cells before minDate.
-                    // If I view an old poll, I want to see the events.
-                    // So for Poll Detail (View), minDate should probably be the Created At date of the poll? Or just undefined to allow all.
-                    // Let's rely on default behavior. Wait, user specifically said "The "prevent past events" rule".
-                    // In Poll Detail, adding options is restricted by `preventPastEvents` in WeeklyScheduler.
-                    // For MonthView, it's mostly navigation.
-                    // I'll leave minDate undefined here to allow viewing past history of the poll.
+                        onMonthChange={(date) => setCurrentDate(date)}
+                        minDate={new Date()} // Keep minDate consistent with creation logic
                     />
                 </>
             )}
@@ -633,11 +412,12 @@ const PollDetail: React.FC = () => {
                         events={schedulerEvents}
                         currentDate={currentDate}
                         onDateChange={setCurrentDate}
-                        isEditable={isCreator && isEditing}
+                        isEditable={false}
                         isReadOnly={!isCreator}
                         onAddEvent={handleAddOptionScheduler}
                         onRemoveEvent={handleDeleteOption}
                         preventPastEvents={true}
+                        deadline={poll.deadline_date ? parseUTCDate(poll.deadline_date) : null}
                     />
                 </div>
             )}
@@ -650,37 +430,7 @@ const PollDetail: React.FC = () => {
                         <div className="flex border-b border-jade-200">
                             {/* Empty corner cell */}
                             <div className="w-48 p-4 shrink-0 flex flex-col justify-end bg-jade-50/50">
-                                {isCreator && isEditing && (
-                                    <div className="p-2 border-b border-jade-200 mb-2">
-                                        <div className="text-xs font-bold text-jade-600 mb-2">Add Time Slot</div>
-                                        <input
-                                            type="text"
-                                            placeholder="Label (e.g. Dinner)"
-                                            className="w-full text-xs p-1 mb-1 border rounded"
-                                            value={newOption.label}
-                                            onChange={e => setNewOption({ ...newOption, label: e.target.value })}
-                                        />
-                                        <input
-                                            type="datetime-local"
-                                            className="w-full text-xs p-1 mb-1 border rounded"
-                                            value={newOption.start_time}
-                                            onChange={e => setNewOption({ ...newOption, start_time: e.target.value })}
-                                        />
-                                        <input
-                                            type="datetime-local"
-                                            className="w-full text-xs p-1 mb-1 border rounded"
-                                            value={newOption.end_time}
-                                            onChange={e => setNewOption({ ...newOption, end_time: e.target.value })}
-                                        />
-                                        <button
-                                            onClick={handleAddOptionList}
-                                            disabled={addingOption}
-                                            className="w-full bg-jade-500 text-white text-xs py-1 rounded hover:bg-jade-600 disabled:opacity-50"
-                                        >
-                                            {addingOption ? 'Adding...' : 'Add'}
-                                        </button>
-                                    </div>
-                                )}
+
                                 <div className="p-4">
                                     <span className="text-xs font-bold text-jade-400 uppercase tracking-wider">Participants</span>
                                 </div>
@@ -699,15 +449,7 @@ const PollDetail: React.FC = () => {
                                         </span>
                                         <span className="text-[10px] text-jade-400 truncate w-full">{option.label}</span>
 
-                                        {isCreator && isEditing && (
-                                            <button
-                                                onClick={() => handleDeleteOption(option.id)}
-                                                className="absolute top-1 right-1 p-1 bg-red-100 text-red-500 rounded-full hover:bg-red-200 hover:text-red-700 transition-colors"
-                                                title="Delete Option"
-                                            >
-                                                <Trash2 size={12} />
-                                            </button>
-                                        )}
+
                                     </div>
                                 );
                             })}

@@ -94,6 +94,7 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                         setCurrentDate(date);
                         setViewMode('month');
                     }}
+                    onYearChange={(date) => setCurrentDate(date)}
                     minDate={new Date()} // Dashboard validation
                 />
             </div>
@@ -178,8 +179,14 @@ const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({ polls }) => {
                         <Clock size={20} />
                     </button>
 
-                    <button onClick={prevMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600">Prev</button>
-                    <button onClick={nextMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600">Next</button>
+                    <div className="flex items-center space-x-1 border-l border-jade-200 pl-2">
+                        <button onClick={prevMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600" title="Previous Month">
+                            <ChevronLeft size={20} />
+                        </button>
+                        <button onClick={nextMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600" title="Next Month">
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
                 </div>
             </div>
 

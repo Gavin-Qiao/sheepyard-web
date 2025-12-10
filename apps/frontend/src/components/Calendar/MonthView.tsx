@@ -1,8 +1,9 @@
 import React from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getDay, isBefore, startOfDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getDay, isBefore, startOfDay, addMonths, subMonths } from 'date-fns';
 import { parseISO } from 'date-fns';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { ChevronLeft, ChevronRight, ZoomOut } from 'lucide-react';
 
 // Helper to ensure we treat strings as UTC for display
 function parseUTCDate(dateString: string): Date {
@@ -27,10 +28,12 @@ interface MonthViewProps {
     events: CalendarEvent[];
     currentDate: Date;
     onDateSelect?: (date: Date) => void;
+    onMonthChange?: (date: Date) => void;
+    onYearChange?: (date: Date) => void;
     minDate?: Date; // If present, disable interaction for dates before this
 }
 
-const MonthView: React.FC<MonthViewProps> = ({ events, currentDate, onDateSelect, minDate }) => {
+const MonthView: React.FC<MonthViewProps> = ({ events, currentDate, onDateSelect, onMonthChange, onYearChange, minDate }) => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
     const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -70,9 +73,45 @@ const MonthView: React.FC<MonthViewProps> = ({ events, currentDate, onDateSelect
     const startDayOfWeek = getDay(monthStart); // 0 = Sunday
     const paddingDays = Array(startDayOfWeek).fill(null);
 
+    const handlePrevMonth = () => {
+        if (onMonthChange) {
+            onMonthChange(subMonths(currentDate, 1));
+        }
+    };
+
+    const handleNextMonth = () => {
+        if (onMonthChange) {
+            onMonthChange(addMonths(currentDate, 1));
+        }
+    };
+
     return (
         <div className="bg-white/60 backdrop-blur-md border border-jade-200 rounded-xl shadow-sm overflow-hidden p-6 transition-all">
-            <h3 className="text-xl font-serif text-ink mb-4">{format(currentDate, 'MMMM yyyy')}</h3>
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-serif text-ink">{format(currentDate, 'MMMM yyyy')}</h3>
+
+                <div className="flex items-center space-x-1">
+                    {onYearChange && (
+                        <button
+                            onClick={() => onYearChange(currentDate)}
+                            className="p-1 mr-1 text-jade-500 hover:text-jade-700 hover:bg-jade-100 rounded-full transition-colors"
+                            title="Switch to Year View"
+                        >
+                            <ZoomOut size={20} />
+                        </button>
+                    )}
+                    {onMonthChange && (
+                        <>
+                            <button onClick={handlePrevMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600" title="Previous Month">
+                                <ChevronLeft size={20} />
+                            </button>
+                            <button onClick={handleNextMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600" title="Next Month">
+                                <ChevronRight size={20} />
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
 
             <div className="grid grid-cols-7 gap-1">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (

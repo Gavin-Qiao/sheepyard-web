@@ -1,8 +1,9 @@
 import React from 'react';
-import { format, startOfYear, eachMonthOfInterval, endOfYear, isBefore, startOfMonth } from 'date-fns';
+import { format, startOfYear, eachMonthOfInterval, endOfYear, isBefore, startOfMonth, addYears, subYears } from 'date-fns';
 import { parseISO } from 'date-fns';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Helper to ensure we treat strings as UTC for display
 function parseUTCDate(dateString: string): Date {
@@ -26,10 +27,11 @@ interface YearViewProps {
     events: CalendarEvent[];
     currentDate: Date;
     onMonthSelect: (date: Date) => void;
+    onYearChange?: (date: Date) => void;
     minDate?: Date;
 }
 
-const YearView: React.FC<YearViewProps> = ({ events, currentDate, onMonthSelect, minDate }) => {
+const YearView: React.FC<YearViewProps> = ({ events, currentDate, onMonthSelect, onYearChange, minDate }) => {
     const yearStart = startOfYear(currentDate);
     const yearEnd = endOfYear(currentDate);
     const months = eachMonthOfInterval({ start: yearStart, end: yearEnd });
@@ -50,10 +52,48 @@ const YearView: React.FC<YearViewProps> = ({ events, currentDate, onMonthSelect,
         return 'bg-jade-600';
     };
 
+    const nextYear = () => {
+        if (onYearChange) {
+            onYearChange(addYears(currentDate, 1));
+        }
+    };
+
+    const prevYear = () => {
+        if (onYearChange) {
+            const newDate = subYears(currentDate, 1);
+            if (!minDate || !isBefore(endOfYear(newDate), minDate)) {
+                onYearChange(newDate);
+            }
+        }
+    };
+
+    // Check if prev year is disabled
+    const isPrevDisabled = minDate ? isBefore(endOfYear(subYears(currentDate, 1)), minDate) : false;
+
     return (
         <div className="bg-white/60 backdrop-blur-md border border-jade-200 rounded-xl shadow-sm p-6">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-serif text-ink">{format(currentDate, 'yyyy')}</h2>
+                {onYearChange && (
+                    <div className="flex items-center space-x-1">
+                        <button
+                            onClick={prevYear}
+                            disabled={isPrevDisabled}
+                            className={cn(
+                                "p-1 rounded text-jade-600",
+                                isPrevDisabled ? "opacity-50 cursor-not-allowed" : "hover:bg-jade-100"
+                            )}
+                        >
+                            <ChevronLeft size={20} />
+                        </button>
+                        <button
+                            onClick={nextYear}
+                            className="p-1 hover:bg-jade-100 rounded text-jade-600"
+                        >
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">

@@ -61,6 +61,7 @@ class PollUpdate(PollBase):
     recurrence_pattern: Optional[str] = None
     recurrence_end_date: Optional[datetime] = None
     apply_changes_from: Optional[datetime] = None # The cut-off date for modification
+    options: Optional[List[PollOptionCreate]] = None
 
 class PollCreate(PollBase):
     # Recurrence fields
