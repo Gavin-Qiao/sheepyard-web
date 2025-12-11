@@ -77,6 +77,7 @@ const YearView: React.FC<YearViewProps> = ({ events, currentDate, onMonthSelect,
                 {onYearChange && (
                     <div className="flex items-center space-x-1">
                         <button
+                            type="button"
                             onClick={prevYear}
                             disabled={isPrevDisabled}
                             className={cn(
@@ -87,6 +88,7 @@ const YearView: React.FC<YearViewProps> = ({ events, currentDate, onMonthSelect,
                             <ChevronLeft size={20} />
                         </button>
                         <button
+                            type="button"
                             onClick={nextYear}
                             className="p-1 hover:bg-jade-100 rounded text-jade-600"
                         >

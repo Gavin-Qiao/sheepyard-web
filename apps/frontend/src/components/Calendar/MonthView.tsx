@@ -93,6 +93,7 @@ const MonthView: React.FC<MonthViewProps> = ({ events, currentDate, onDateSelect
                 <div className="flex items-center space-x-1">
                     {onYearChange && (
                         <button
+                            type="button"
                             onClick={() => onYearChange(currentDate)}
                             className="p-1 mr-1 text-jade-500 hover:text-jade-700 hover:bg-jade-100 rounded-full transition-colors"
                             title="Switch to Year View"
@@ -102,10 +103,10 @@ const MonthView: React.FC<MonthViewProps> = ({ events, currentDate, onDateSelect
                     )}
                     {onMonthChange && (
                         <>
-                            <button onClick={handlePrevMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600" title="Previous Month">
+                            <button type="button" onClick={handlePrevMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600" title="Previous Month">
                                 <ChevronLeft size={20} />
                             </button>
-                            <button onClick={handleNextMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600" title="Next Month">
+                            <button type="button" onClick={handleNextMonth} className="p-1 hover:bg-jade-100 rounded text-jade-600" title="Next Month">
                                 <ChevronRight size={20} />
                             </button>
                         </>
