@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status, Request, WebSocket, WebSocketException
 from sqlmodel import Session, select
 from jose import jwt, JWTError
 
@@ -27,4 +27,22 @@ def get_current_user(request: Request, session: Session = Depends(get_session)):
     user = session.exec(statement).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    return user
+
+async def get_current_user_ws(websocket: WebSocket, session: Session = Depends(get_session)):
+    token = websocket.cookies.get("access_token")
+    if not token:
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Not authenticated")
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        discord_id: str = payload.get("sub")
+        if discord_id is None:
+             raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
+    except JWTError:
+         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
+
+    statement = select(User).where(User.discord_id == discord_id)
+    user = session.exec(statement).first()
+    if user is None:
+         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="User not found")
     return user

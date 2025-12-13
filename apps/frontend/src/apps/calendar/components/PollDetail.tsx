@@ -128,6 +128,78 @@ const PollDetail: React.FC = () => {
 
     useEffect(() => {
         fetchPoll();
+
+        // WebSocket Connection
+        let ws: WebSocket | null = null;
+        if (pollId) {
+            // Determine protocol (ws or wss)
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            // Use relative path but ensure we hit the proxy or correct port
+            // In Vite dev, /api is proxied. WebSockets might need direct port if proxy doesn't support upgrade
+            // But usually /api proxy works for WS too if configured.
+            // Let's try direct connection to relative /api/ws path if proxy handles it?
+            // The backend router is mounted at root for ws? No, app.include_router(ws.router)
+            // Router defines @router.websocket("/ws/polls/{poll_id}")
+            // So URL is /ws/polls/{poll_id} (not under /api prefix based on main.py diff)
+            // Wait, I didn't add prefix="/api" in main.py for ws.router.
+            // So it is at root /ws/...
+
+            // To work with Vite proxying:
+            // Vite proxy usually proxies /api -> localhost:8000/api
+            // If I want to use /ws, I need to ensure Vite proxies it or use full URL.
+            // Best practice: put WS under /api/ws or configure proxy for /ws
+
+            // Checking main.py:
+            // app.include_router(ws.router) -> No prefix.
+            // Router path: "/ws/polls/{poll_id}"
+            // So the backend expects /ws/polls/...
+
+            // In dev environment, frontend is on 5173, backend on 8000.
+            // window.location.host is 5173.
+            // We need to connect to 8000.
+
+            // Simple hack for dev vs prod:
+            const host = window.location.hostname;
+            const port = '8000'; // Assume standard local dev
+            // If in production (served by same origin via Caddy/Nginx), use window.location.host
+            const isDev = window.location.port === '5173';
+
+            const wsUrl = isDev
+                ? `${protocol}//${host}:${port}/ws/polls/${pollId}`
+                : `${protocol}//${window.location.host}/ws/polls/${pollId}`;
+
+            console.log('Connecting to WebSocket:', wsUrl);
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket Connected');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const updatedPoll = JSON.parse(event.data);
+                    console.log('Received poll update:', updatedPoll);
+                    // Update state silently
+                    setPoll(updatedPoll);
+                } catch (e) {
+                    console.error('Failed to parse WebSocket message', e);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket Disconnected');
+            };
+
+            ws.onerror = (e) => {
+                console.error('WebSocket Error', e);
+            };
+        }
+
+        return () => {
+            if (ws) {
+                ws.close();
+            }
+        };
     }, [pollId]);
 
     const handleVote = async (optionId: number) => {
