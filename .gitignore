@@ -58,3 +58,5 @@ config/caddy/Caddyfile
 .ssh/
 root.crt
 docker-compose.yml
+
+.cursor/
