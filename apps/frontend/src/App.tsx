@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import CalendarApp from './apps/calendar/CalendarApp';
+
+const DiceApp = lazy(() => import('./apps/dice/DiceApp'));
 
 interface User {
   id: number
@@ -75,6 +77,24 @@ function App() {
             <Route
                 path="/apps/calendar/*"
                 element={user ? <CalendarApp /> : <Navigate to="/login" replace />}
+            />
+            <Route
+                path="/apps/dice/*"
+                element={
+                  user ? (
+                    <Suspense
+                      fallback={
+                        <div className="min-h-screen w-full bg-paper flex items-center justify-center">
+                          <div className="text-jade-600 animate-pulse font-serif tracking-widest">LOADING…</div>
+                        </div>
+                      }
+                    >
+                      <DiceApp />
+                    </Suspense>
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
+                }
             />
             {/* Catch all redirect */}
             <Route path="*" element={<Navigate to="/" replace />} />
