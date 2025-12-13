@@ -5,7 +5,7 @@ from sqlalchemy import text
 # Import models to ensure they are registered with SQLModel
 from models import User, Poll, PollOption, Vote, UserMention
 
-from routers import auth, polls, votes, discord, users, profile
+from routers import auth, polls, votes, discord, users, profile, ws
 
 print("Initializing FastAPI app...")
 app = FastAPI()
@@ -16,6 +16,7 @@ app.include_router(votes.router, prefix="/api")
 app.include_router(discord.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(profile.router, prefix="/api")
+app.include_router(ws.router)
 
 def create_db_and_tables():
     print("Creating database tables...")
