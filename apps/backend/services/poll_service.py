@@ -5,10 +5,12 @@ from fastapi import HTTPException, status
 from models import Poll, PollOption, User, Vote
 from schemas import PollCreate, PollOptionCreate, PollUpdate
 from services.notification import NotificationService, NoOpNotificationService
+from managers.connection_manager import manager
 import logging
 from dateutil import rrule
 from dateutil.parser import parse
 from datetime import datetime, timedelta, timezone
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,23 @@ class PollService:
     def __init__(self, session: Session, notification_service: NotificationService = NoOpNotificationService()):
         self.session = session
         self.notification_service = notification_service
+
+    async def _broadcast_poll_update(self, poll_id: int):
+        """Helper to broadcast poll state to all connected clients."""
+        try:
+            # Re-fetch fresh poll state using existing method
+            # We need to manually serialize it because the manager accepts dicts
+            # We can't use Pydantic models directly if send_json expects a dict
+            # or we can rely on fastapi.encoders.jsonable_encoder
+            from fastapi.encoders import jsonable_encoder
+            from schemas import PollReadWithDetails
+
+            poll = self.get_poll(poll_id)
+            # Use schema for clean serialization (handles relations)
+            poll_data = PollReadWithDetails.from_orm(poll)
+            await manager.broadcast(poll_id, jsonable_encoder(poll_data))
+        except Exception as e:
+            logger.error(f"Failed to broadcast poll update: {e}")
 
     def _generate_recurring_options(self, template_option: PollOptionCreate, pattern_str: str, end_date: Optional[datetime], start_date_override: Optional[datetime] = None) -> List[PollOption]:
         """
@@ -170,6 +189,10 @@ class PollService:
         self.session.add(db_option)
         self.session.commit()
         self.session.refresh(db_option)
+
+        # Broadcast
+        asyncio.create_task(self._broadcast_poll_update(poll_id))
+
         return db_option
 
     def delete_poll(self, poll_id: int, user: User):
@@ -315,6 +338,10 @@ class PollService:
         self.session.add(poll)
         self.session.commit()
         self.session.refresh(poll)
+
+        # Broadcast
+        asyncio.create_task(self._broadcast_poll_update(poll_id))
+
         return poll
 
     def delete_poll_option(self, poll_id: int, option_id: int, user: User):
@@ -331,3 +358,6 @@ class PollService:
 
         self.session.delete(option)
         self.session.commit()
+
+        # Broadcast
+        asyncio.create_task(self._broadcast_poll_update(poll_id))

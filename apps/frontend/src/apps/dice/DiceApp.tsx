@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Dices } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import { Switch } from '@headlessui/react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 
@@ -51,7 +51,7 @@ const DiceApp: React.FC = () => {
         valid: false,
         min: 0,
         max: 0,
-        error: 'Enter integers for both Start and End.',
+        error: 'Enter numbers for both bounds to reveal your destiny.',
       };
     }
 
@@ -66,7 +66,7 @@ const DiceApp: React.FC = () => {
         valid: false,
         min,
         max,
-        error: 'No integers remain in the effective range. Adjust the numbers or include boundaries.',
+        error: 'No possibilities remain within these bounds. Adjust the numbers or include the boundaries.',
       };
     }
 
@@ -99,16 +99,16 @@ const DiceApp: React.FC = () => {
   return (
     <Background>
       <div className="flex h-screen w-full flex-col font-sans">
-        <header className="border-b border-jade-100 bg-white/50 backdrop-blur-sm sticky top-0 z-20">
+        <header className="border-b border-arcane-200 bg-gradient-to-r from-arcane-50 via-white/80 to-arcane-50 backdrop-blur-sm sticky top-0 z-20">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Link to={backDestination} className="text-jade-600 hover:text-jade-800 transition-colors">
+              <Link to={backDestination} className="text-arcane-600 hover:text-arcane-800 transition-colors">
                 <ArrowLeft size={20} />
               </Link>
-              <div className="h-6 w-px bg-jade-200"></div>
-              <div className="flex items-center space-x-2 text-jade-800">
-                <Dices size={20} />
-                <span className="font-serif text-lg tracking-wide font-bold">D20 Randomizer</span>
+              <div className="h-6 w-px bg-arcane-200"></div>
+              <div className="flex items-center space-x-2 text-arcane-800">
+                <Sparkles size={20} className="text-gold-500" />
+                <span className="font-serif text-lg tracking-wide font-bold bg-gradient-to-r from-arcane-700 via-arcane-500 to-gold-600 bg-clip-text text-transparent">The Oracle's Die</span>
               </div>
             </div>
           </div>
@@ -117,26 +117,22 @@ const DiceApp: React.FC = () => {
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto px-6 py-8">
             <div className="mb-6">
-              <h1 className="text-3xl font-light font-serif text-ink">D20 Randomizer</h1>
-              <p className="text-jade-700 text-sm mt-1">Uniform integer in your chosen range.</p>
+              <h1 className="text-3xl font-light font-serif bg-gradient-to-r from-arcane-800 via-arcane-600 to-gold-600 bg-clip-text text-transparent">The Oracle's Die</h1>
+              <p className="text-arcane-600 text-sm mt-1 italic">Let fate reveal your number</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Visual + Result */}
               <section className="lg:col-span-7">
-                <div className="border border-jade-200 bg-white/40 backdrop-blur-sm rounded-xl p-5">
+                <div className="border border-arcane-200 bg-gradient-to-br from-white/60 to-arcane-50/40 backdrop-blur-sm rounded-xl p-5 shadow-sm">
                   <div>
-                    <div className="text-xs uppercase tracking-widest text-jade-600">Range</div>
+                    <div className="text-xs uppercase tracking-widest text-arcane-600 font-medium">Destiny's Bounds</div>
                     <div className="text-lg text-ink font-serif">
                       {formatEffectiveRange(effective.min, effective.max, effective.valid)}
                     </div>
-                    <div className="text-xs text-jade-600 mt-1">
-                      N={params.N || '—'} · d20×{params.k}
-                      {revealedOutcome && !animating ? ` · rerolls ${revealedOutcome.rerolls}` : ''}
-                    </div>
                   </div>
 
-                  <div className="mt-5 rounded-xl border border-jade-200/70 bg-paper/30 h-[320px] flex items-center justify-center">
+                  <div className="mt-5 rounded-xl border border-arcane-200/70 bg-gradient-to-b from-paper/50 to-arcane-50/30 h-[320px] flex items-center justify-center shadow-inner">
                     <DiceScene3D
                       diceCount={params.k}
                       diceValues={diceValues}
@@ -150,28 +146,28 @@ const DiceApp: React.FC = () => {
                   </div>
 
                   <div className="mt-6">
-                    <div className="text-xs uppercase tracking-widest text-jade-600">Result</div>
+                    <div className="text-xs uppercase tracking-widest text-arcane-600 font-medium">Your Fate</div>
                     <div className="mt-2 flex items-end justify-between gap-4">
                       <div className="min-h-[56px]">
                         <AnimatePresence mode="popLayout">
                           {revealedOutcome?.finalResult !== null && revealedOutcome?.finalResult !== undefined && !animating && (
                             <motion.div
                               key={`result-${revealedOutcome.finalResult}-${animating ? 'r' : 's'}`}
-                              initial={{ opacity: 0, y: 6 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -6 }}
-                              transition={{ duration: 0.25 }}
-                              className="text-5xl font-serif text-ink leading-none"
+                              initial={{ opacity: 0, y: 6, scale: 0.9 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -6, scale: 0.9 }}
+                              transition={{ duration: 0.35, ease: 'easeOut' }}
+                              className="text-5xl font-serif bg-gradient-to-br from-gold-500 via-gold-600 to-arcane-600 bg-clip-text text-transparent leading-none drop-shadow-sm"
                             >
                               {revealedOutcome.finalResult}
                             </motion.div>
                           )}
                         </AnimatePresence>
                         {revealedOutcome === null && !animating && (
-                          <div className="text-jade-600 text-sm mt-2">Press Roll.</div>
+                          <div className="text-arcane-500 text-sm mt-2 italic">Invoke the oracle...</div>
                         )}
                         {animating && (
-                          <div className="text-jade-600 text-sm mt-2">Rolling…</div>
+                          <div className="text-arcane-500 text-sm mt-2 italic">The fates weave...</div>
                         )}
                       </div>
 
@@ -179,15 +175,26 @@ const DiceApp: React.FC = () => {
                         type="button"
                         onClick={onRoll}
                         whileTap={{ scale: canRoll && !animating ? 0.98 : 1 }}
+                        whileHover={{ scale: canRoll && !animating ? 1.02 : 1 }}
                         className={[
-                          'px-5 py-3 rounded-lg font-sans text-sm tracking-wide transition-colors',
+                          'px-6 py-3 rounded-lg font-sans text-sm tracking-wide transition-all duration-300 shadow-md',
                           canRoll && !animating
-                            ? 'bg-jade-400 text-paper hover:bg-jade-500'
-                            : 'bg-jade-100 text-jade-400 cursor-not-allowed',
+                            ? 'bg-gradient-to-r from-arcane-600 via-arcane-500 to-arcane-600 text-white hover:from-arcane-500 hover:via-arcane-400 hover:to-arcane-500 hover:shadow-lg hover:shadow-arcane-300/30'
+                            : 'bg-arcane-100 text-arcane-400 cursor-not-allowed',
                         ].join(' ')}
                         disabled={!canRoll || animating}
                       >
-                        {animating ? 'Rolling…' : 'Roll'}
+                        {animating ? (
+                          <span className="flex items-center gap-2">
+                            <Sparkles size={14} className="animate-pulse" />
+                            Divining...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            <Sparkles size={14} />
+                            Cast the Die
+                          </span>
+                        )}
                       </motion.button>
                     </div>
                   </div>
@@ -196,18 +203,19 @@ const DiceApp: React.FC = () => {
 
               {/* Controls */}
               <aside className="lg:col-span-5">
-                <div className="border border-jade-200 bg-white/40 backdrop-blur-sm rounded-xl p-5">
+                <div className="border border-arcane-200 bg-gradient-to-br from-white/60 to-arcane-50/40 backdrop-blur-sm rounded-xl p-5 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="font-serif text-lg text-ink">Range</h2>
+                      <h2 className="font-serif text-lg text-ink">Destiny's Bounds</h2>
+                      <p className="text-arcane-500 text-xs mt-0.5">Define the realm of possibilities</p>
                     </div>
                   </div>
 
                   <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <label className="block">
-                      <div className="text-xs uppercase tracking-widest text-jade-600">Start</div>
+                      <div className="text-xs uppercase tracking-widest text-arcane-600 font-medium">From</div>
                       <input
-                        className="mt-2 w-full rounded-lg border border-jade-200 bg-white/60 px-3 py-2 text-ink placeholder:text-jade-400 focus:outline-none focus:ring-2 focus:ring-jade-200"
+                        className="mt-2 w-full rounded-lg border border-arcane-200 bg-white/80 px-3 py-2 text-ink placeholder:text-arcane-400 focus:outline-none focus:ring-2 focus:ring-arcane-300 focus:border-arcane-400 transition-all"
                         inputMode="numeric"
                         value={n0Text}
                         onChange={(e) => setN0Text(e.target.value)}
@@ -216,9 +224,9 @@ const DiceApp: React.FC = () => {
                     </label>
 
                     <label className="block">
-                      <div className="text-xs uppercase tracking-widest text-jade-600">End</div>
+                      <div className="text-xs uppercase tracking-widest text-arcane-600 font-medium">To</div>
                       <input
-                        className="mt-2 w-full rounded-lg border border-jade-200 bg-white/60 px-3 py-2 text-ink placeholder:text-jade-400 focus:outline-none focus:ring-2 focus:ring-jade-200"
+                        className="mt-2 w-full rounded-lg border border-arcane-200 bg-white/80 px-3 py-2 text-ink placeholder:text-arcane-400 focus:outline-none focus:ring-2 focus:ring-arcane-300 focus:border-arcane-400 transition-all"
                         inputMode="numeric"
                         value={n1Text}
                         onChange={(e) => setN1Text(e.target.value)}
@@ -228,44 +236,44 @@ const DiceApp: React.FC = () => {
                   </div>
 
                   <div className="mt-5 space-y-3">
-                    <div className="flex items-center justify-between rounded-lg border border-jade-200 bg-white/40 px-3 py-2">
+                    <div className="flex items-center justify-between rounded-lg border border-arcane-200 bg-white/50 px-3 py-2">
                       <div>
-                        <div className="text-sm text-ink">Include start</div>
-                        <div className="text-xs text-jade-600">Off ⇒ min = Start + 1</div>
+                        <div className="text-sm text-ink">Include first number</div>
+                        <div className="text-xs text-arcane-500">When off, starts from the next number</div>
                       </div>
                       <Switch
                         checked={includeStart}
                         onChange={setIncludeStart}
                         className={[
-                          'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-jade-200',
-                          includeStart ? 'bg-jade-400' : 'bg-jade-200',
+                          'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-arcane-300',
+                          includeStart ? 'bg-arcane-500' : 'bg-arcane-200',
                         ].join(' ')}
                       >
                         <span
                           className={[
-                            'inline-block h-5 w-5 transform rounded-full bg-paper transition-transform',
+                            'inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform',
                             includeStart ? 'translate-x-5' : 'translate-x-1',
                           ].join(' ')}
                         />
                       </Switch>
                     </div>
 
-                    <div className="flex items-center justify-between rounded-lg border border-jade-200 bg-white/40 px-3 py-2">
+                    <div className="flex items-center justify-between rounded-lg border border-arcane-200 bg-white/50 px-3 py-2">
                       <div>
-                        <div className="text-sm text-ink">Include end</div>
-                        <div className="text-xs text-jade-600">Off ⇒ max = End − 1</div>
+                        <div className="text-sm text-ink">Include last number</div>
+                        <div className="text-xs text-arcane-500">When off, ends before this number</div>
                       </div>
                       <Switch
                         checked={includeEnd}
                         onChange={setIncludeEnd}
                         className={[
-                          'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-jade-200',
-                          includeEnd ? 'bg-jade-400' : 'bg-jade-200',
+                          'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-arcane-300',
+                          includeEnd ? 'bg-arcane-500' : 'bg-arcane-200',
                         ].join(' ')}
                       >
                         <span
                           className={[
-                            'inline-block h-5 w-5 transform rounded-full bg-paper transition-transform',
+                            'inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform',
                             includeEnd ? 'translate-x-5' : 'translate-x-1',
                           ].join(' ')}
                         />
@@ -275,13 +283,13 @@ const DiceApp: React.FC = () => {
 
                   <div className="mt-5">
                     {!effective.valid && (
-                      <div className="rounded-lg border border-jade-200 bg-paper/60 px-3 py-2 text-sm text-jade-700">
+                      <div className="rounded-lg border border-arcane-200 bg-arcane-50/60 px-3 py-2 text-sm text-arcane-700">
                         {effective.error}
                       </div>
                     )}
                     {effective.valid && params.k > 6 && (
-                      <div className="rounded-lg border border-jade-200 bg-paper/60 px-3 py-2 text-sm text-jade-700">
-                        This is a very large range (needs {params.k} d20s). Rolling may take longer.
+                      <div className="rounded-lg border border-gold-400/50 bg-gold-300/20 px-3 py-2 text-sm text-gold-700">
+                        A vast realm of possibilities. The oracle may take a moment longer to divine your fate.
                       </div>
                     )}
                   </div>
@@ -313,5 +321,3 @@ const DiceApp: React.FC = () => {
 };
 
 export default DiceApp;
-
-

@@ -10,7 +10,7 @@ from services.notification import NoOpNotificationService
 router = APIRouter()
 
 @router.post("/votes")
-def vote(
+async def vote(
     vote_data: VoteCreate,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
