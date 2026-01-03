@@ -4,7 +4,6 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import Vote, PollOption, User, Poll
 from services.notification import NotificationService, NoOpNotificationService
-from managers.connection_manager import manager
 from services.poll_service import PollService
 import logging
 import asyncio
@@ -16,20 +15,6 @@ class VoteService:
         self.session = session
         self.notification_service = notification_service
 
-    async def _broadcast_poll_update(self, poll_id: int):
-        """Helper to broadcast poll state to all connected clients."""
-        try:
-            # Create a new PollService to reuse get_poll logic
-            # Note: We can reuse the same session
-            poll_service = PollService(self.session)
-            from fastapi.encoders import jsonable_encoder
-            from schemas import PollReadWithDetails
-
-            poll = poll_service.get_poll(poll_id)
-            poll_data = PollReadWithDetails.from_orm(poll)
-            await manager.broadcast(poll_id, jsonable_encoder(poll_data))
-        except Exception as e:
-            logger.error(f"Failed to broadcast poll update via VoteService: {e}")
 
     def cast_vote(self, user: User, poll_option_id: int) -> dict:
         """
@@ -59,7 +44,7 @@ class VoteService:
             self.session.commit()
 
             # Broadcast
-            asyncio.create_task(self._broadcast_poll_update(poll_id))
+            asyncio.create_task(PollService(self.session, self.notification_service).broadcast_poll_update(poll_id))
 
             return {"status": "removed", "poll_option_id": poll_option_id}
         else:
@@ -70,7 +55,7 @@ class VoteService:
             self.session.refresh(new_vote)
 
             # Broadcast
-            asyncio.create_task(self._broadcast_poll_update(poll_id))
+            asyncio.create_task(PollService(self.session, self.notification_service).broadcast_poll_update(poll_id))
 
             # Notify
             try:

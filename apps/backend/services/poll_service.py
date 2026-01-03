@@ -3,7 +3,8 @@ from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import Poll, PollOption, User, Vote
-from schemas import PollCreate, PollOptionCreate, PollUpdate
+from schemas import PollCreate, PollOptionCreate, PollUpdate, PollReadWithDetails
+from fastapi.encoders import jsonable_encoder
 from services.notification import NotificationService, NoOpNotificationService
 from managers.connection_manager import manager
 import logging
@@ -19,15 +20,13 @@ class PollService:
         self.session = session
         self.notification_service = notification_service
 
-    async def _broadcast_poll_update(self, poll_id: int):
+    async def broadcast_poll_update(self, poll_id: int):
         """Helper to broadcast poll state to all connected clients."""
         try:
             # Re-fetch fresh poll state using existing method
             # We need to manually serialize it because the manager accepts dicts
             # We can't use Pydantic models directly if send_json expects a dict
             # or we can rely on fastapi.encoders.jsonable_encoder
-            from fastapi.encoders import jsonable_encoder
-            from schemas import PollReadWithDetails
 
             poll = self.get_poll(poll_id)
             # Use schema for clean serialization (handles relations)
@@ -191,7 +190,7 @@ class PollService:
         self.session.refresh(db_option)
 
         # Broadcast
-        asyncio.create_task(self._broadcast_poll_update(poll_id))
+        asyncio.create_task(self.broadcast_poll_update(poll_id))
 
         return db_option
 
@@ -340,7 +339,7 @@ class PollService:
         self.session.refresh(poll)
 
         # Broadcast
-        asyncio.create_task(self._broadcast_poll_update(poll_id))
+        asyncio.create_task(self.broadcast_poll_update(poll_id))
 
         return poll
 
@@ -360,4 +359,4 @@ class PollService:
         self.session.commit()
 
         # Broadcast
-        asyncio.create_task(self._broadcast_poll_update(poll_id))
+        asyncio.create_task(self.broadcast_poll_update(poll_id))

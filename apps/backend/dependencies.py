@@ -37,12 +37,12 @@ async def get_current_user_ws(websocket: WebSocket, session: Session = Depends(g
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         discord_id: str = payload.get("sub")
         if discord_id is None:
-             raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
+            raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
     except JWTError:
-         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
 
     statement = select(User).where(User.discord_id == discord_id)
     user = session.exec(statement).first()
     if user is None:
-         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="User not found")
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="User not found")
     return user

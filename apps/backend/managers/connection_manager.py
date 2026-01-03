@@ -28,6 +28,6 @@ class ConnectionManager:
                     await connection.send_json(message)
                 except Exception:
                     # If sending fails, assume connection is dead and remove it
-                    pass
+                    self.disconnect(poll_id, connection)
 
 manager = ConnectionManager()
