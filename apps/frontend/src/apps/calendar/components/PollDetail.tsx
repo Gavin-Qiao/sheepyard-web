@@ -127,44 +127,53 @@ const PollDetail: React.FC = () => {
     };
 
     useEffect(() => {
-        fetchPoll();
-
-        // WebSocket Connection
         let ws: WebSocket | null = null;
+        let isMounted = true;
+
         if (pollId) {
-            // Determine protocol (ws or wss)
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsBaseUrl = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.host}`;
-            const wsUrl = `${wsBaseUrl}/ws/polls/${pollId}`;
+            setLoading(true);
+            fetch(`/api/polls/${pollId}`)
+                .then(res => {
+                    if (!res.ok) throw new Error('Failed to fetch poll');
+                    return res.json();
+                })
+                .then(data => {
+                    if (!isMounted) return;
 
-            // console.log('Connecting to WebSocket:', wsUrl);
-            ws = new WebSocket(wsUrl);
+                    setPoll(data);
+                    if (data.options.length > 0) {
+                        const future = data.options.find((o: PollOption) => parseUTCDate(o.start_time) > new Date());
+                        if (future) setCurrentDate(parseUTCDate(future.start_time));
+                        else setCurrentDate(parseUTCDate(data.options[data.options.length - 1].start_time));
+                    }
 
-            ws.onopen = () => {
-                // console.log('WebSocket Connected');
-            };
+                    // WebSocket Connection is established *after* initial data is fetched
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsBaseUrl = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.host}`;
+                    const wsUrl = `${wsBaseUrl}/ws/polls/${pollId}`;
 
-            ws.onmessage = (event) => {
-                try {
-                    const updatedPoll = JSON.parse(event.data);
-                    // console.log('Received poll update:', updatedPoll);
-                    // Update state silently
-                    setPoll(updatedPoll);
-                } catch (e) {
-                    // console.error('Failed to parse WebSocket message', e);
-                }
-            };
+                    ws = new WebSocket(wsUrl);
 
-            ws.onclose = () => {
-                // console.log('WebSocket Disconnected');
-            };
-
-            ws.onerror = (e) => {
-                // console.error('WebSocket Error', e);
-            };
+                    ws.onmessage = (event) => {
+                        if (!isMounted) return;
+                        try {
+                            const updatedPoll = JSON.parse(event.data);
+                            setPoll(updatedPoll);
+                        } catch (e) {
+                            // console.error('Failed to parse WebSocket message', e);
+                        }
+                    };
+                })
+                .catch(err => {
+                    if (isMounted) setError(err.message);
+                })
+                .finally(() => {
+                    if (isMounted) setLoading(false);
+                });
         }
 
         return () => {
+            isMounted = false;
             if (ws) {
                 ws.close();
             }
