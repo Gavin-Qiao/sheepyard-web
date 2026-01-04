@@ -141,7 +141,7 @@ const PollDetail: React.FC = () => {
                             const updatedPoll = JSON.parse(event.data);
                             setPoll(updatedPoll);
                         } catch (e) {
-                            // console.error('Failed to parse WebSocket message', e);
+                            console.error('Failed to parse WebSocket message', e);
                         }
                     };
 
