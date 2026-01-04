@@ -15,6 +15,8 @@ class ConnectionManager:
                 self.active_connections[poll_id] = []
             self.active_connections[poll_id].append(websocket)
 
+    async def disconnect(self, poll_id: int, websocket: WebSocket):
+        async with self._lock:
             if poll_id in self.active_connections:
                 try:
                     self.active_connections[poll_id].remove(websocket)
@@ -31,8 +33,14 @@ class ConnectionManager:
         for connection in connections:
             try:
                 await connection.send_json(message)
-            except Exception:
-                # Awaiting disconnect is important here.
+            except RuntimeError as e:
+                # e.g. "RuntimeError: Unexpected ASGI message 'websocket.disconnect', while running 'websocket.send'"
+                # We can log this but it's expected if client disconnected.
+                # logger.info(f"Client disconnected during broadcast: {e}")
+                await self.disconnect(poll_id, connection)
+            except Exception as e:
+                # Log other unexpected errors
+                print(f"Error broadcasting to client: {e}") # Using print as logger not imported here, or import logger
                 await self.disconnect(poll_id, connection)
 
 manager = ConnectionManager()

@@ -47,9 +47,8 @@ class VoteService:
             self.session.commit()
 
             # Broadcast
-            updated_poll = self.poll_service.get_poll(poll_id)
-            poll_data = PollReadWithDetails.from_orm(updated_poll)
-            background_tasks.add_task(manager.broadcast, poll_id, jsonable_encoder(poll_data))
+            # Broadcast
+            self.poll_service.broadcast_poll_update(poll_option.poll, background_tasks)
 
             return {"status": "removed", "poll_option_id": poll_option_id}
         else:
@@ -60,9 +59,8 @@ class VoteService:
             self.session.refresh(new_vote)
 
             # Broadcast
-            updated_poll = self.poll_service.get_poll(poll_id)
-            poll_data = PollReadWithDetails.from_orm(updated_poll)
-            background_tasks.add_task(manager.broadcast, poll_id, jsonable_encoder(poll_data))
+            # Broadcast
+            self.poll_service.broadcast_poll_update(poll_option.poll, background_tasks)
 
             # Notify
             try:

@@ -20,13 +20,18 @@ class PollService:
         self.session = session
         self.notification_service = notification_service
 
-    def _broadcast_poll_update(self, poll: Poll, background_tasks: BackgroundTasks):
+    def broadcast_poll_update(self, poll: Poll, background_tasks: BackgroundTasks):
         """
         Refreshes the poll to get latest state (e.g. updated options/votes) 
         and schedules a broadcast task.
-        Avoiding redundant DB fetching by using session.refresh(poll).
+        Avoiding redundant DB fetching by using session.refresh(poll) first, 
+        then re-fetching via get_poll() if needed to ensure relationships are up to date 
+        (or just relying on get_poll which is safer given SQLModel behaviors).
         """
-        self.session.refresh(poll)
+        # Note: session.refresh(poll) only updates attributes, not relationships.
+        # To guarantee we broadcast the full, updated structure including options and votes,
+        # we re-fetch using get_poll which has the selectinload options.
+        poll = self.get_poll(poll.id)
         poll_data = PollReadWithDetails.from_orm(poll)
         background_tasks.add_task(manager.broadcast, poll.id, jsonable_encoder(poll_data))
 
@@ -185,7 +190,7 @@ class PollService:
         self.session.refresh(db_option)
 
         # Broadcast
-        self._broadcast_poll_update(poll, background_tasks)
+        self.broadcast_poll_update(poll, background_tasks)
 
         return db_option
 
@@ -334,7 +339,7 @@ class PollService:
         self.session.refresh(poll)
 
         # Broadcast
-        self._broadcast_poll_update(poll, background_tasks)
+        self.broadcast_poll_update(poll, background_tasks)
 
         return poll
 
@@ -354,4 +359,4 @@ class PollService:
         self.session.commit()
 
         # Broadcast
-        self._broadcast_poll_update(poll, background_tasks)
+        self.broadcast_poll_update(poll, background_tasks)
