@@ -137,30 +137,30 @@ const PollDetail: React.FC = () => {
             const wsBaseUrl = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.host}`;
             const wsUrl = `${wsBaseUrl}/ws/polls/${pollId}`;
 
-            console.log('Connecting to WebSocket:', wsUrl);
+            // console.log('Connecting to WebSocket:', wsUrl);
             ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
-                console.log('WebSocket Connected');
+                // console.log('WebSocket Connected');
             };
 
             ws.onmessage = (event) => {
                 try {
                     const updatedPoll = JSON.parse(event.data);
-                    console.log('Received poll update:', updatedPoll);
+                    // console.log('Received poll update:', updatedPoll);
                     // Update state silently
                     setPoll(updatedPoll);
                 } catch (e) {
-                    console.error('Failed to parse WebSocket message', e);
+                    // console.error('Failed to parse WebSocket message', e);
                 }
             };
 
             ws.onclose = () => {
-                console.log('WebSocket Disconnected');
+                // console.log('WebSocket Disconnected');
             };
 
             ws.onerror = (e) => {
-                console.error('WebSocket Error', e);
+                // console.error('WebSocket Error', e);
             };
         }
 

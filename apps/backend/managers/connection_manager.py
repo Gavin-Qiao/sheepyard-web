@@ -15,14 +15,11 @@ class ConnectionManager:
                 self.active_connections[poll_id] = []
             self.active_connections[poll_id].append(websocket)
 
-    async def disconnect(self, poll_id: int, websocket: WebSocket):
-        async with self._lock:
             if poll_id in self.active_connections:
-                if websocket in self.active_connections[poll_id]:
-                    try:
-                        self.active_connections[poll_id].remove(websocket)
-                    except ValueError:
-                        pass # Already removed
+                try:
+                    self.active_connections[poll_id].remove(websocket)
+                except ValueError:
+                    pass # Already removed
                 if not self.active_connections[poll_id]:
                     del self.active_connections[poll_id]
 

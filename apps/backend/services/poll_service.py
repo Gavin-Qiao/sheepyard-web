@@ -20,7 +20,15 @@ class PollService:
         self.session = session
         self.notification_service = notification_service
 
-# Helper method broadcast_poll_update removed in favor of direct injection via BackgroundTasks
+    def _broadcast_poll_update(self, poll: Poll, background_tasks: BackgroundTasks):
+        """
+        Refreshes the poll to get latest state (e.g. updated options/votes) 
+        and schedules a broadcast task.
+        Avoiding redundant DB fetching by using session.refresh(poll).
+        """
+        self.session.refresh(poll)
+        poll_data = PollReadWithDetails.from_orm(poll)
+        background_tasks.add_task(manager.broadcast, poll.id, jsonable_encoder(poll_data))
 
     def _generate_recurring_options(self, template_option: PollOptionCreate, pattern_str: str, end_date: Optional[datetime], start_date_override: Optional[datetime] = None) -> List[PollOption]:
         """
@@ -177,9 +185,7 @@ class PollService:
         self.session.refresh(db_option)
 
         # Broadcast
-        updated_poll = self.get_poll(poll_id)
-        poll_data = PollReadWithDetails.from_orm(updated_poll)
-        background_tasks.add_task(manager.broadcast, poll_id, jsonable_encoder(poll_data))
+        self._broadcast_poll_update(poll, background_tasks)
 
         return db_option
 
@@ -328,9 +334,7 @@ class PollService:
         self.session.refresh(poll)
 
         # Broadcast
-        updated_poll = self.get_poll(poll_id)
-        poll_data = PollReadWithDetails.from_orm(updated_poll)
-        background_tasks.add_task(manager.broadcast, poll_id, jsonable_encoder(poll_data))
+        self._broadcast_poll_update(poll, background_tasks)
 
         return poll
 
@@ -350,6 +354,4 @@ class PollService:
         self.session.commit()
 
         # Broadcast
-        updated_poll = self.get_poll(poll_id)
-        poll_data = PollReadWithDetails.from_orm(updated_poll)
-        background_tasks.add_task(manager.broadcast, poll_id, jsonable_encoder(poll_data))
+        self._broadcast_poll_update(poll, background_tasks)
