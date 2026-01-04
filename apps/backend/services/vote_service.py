@@ -1,7 +1,7 @@
 from typing import Optional
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 from models import Vote, PollOption, User, Poll
 from services.notification import NotificationService, NoOpNotificationService
 from services.poll_service import PollService
@@ -11,12 +11,13 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 class VoteService:
-    def __init__(self, session: Session, notification_service: NotificationService = NoOpNotificationService()):
+    def __init__(self, session: Session, poll_service: PollService, notification_service: NotificationService = NoOpNotificationService()):
         self.session = session
+        self.poll_service = poll_service
         self.notification_service = notification_service
 
 
-    def cast_vote(self, user: User, poll_option_id: int) -> dict:
+    def cast_vote(self, user: User, poll_option_id: int, background_tasks: BackgroundTasks) -> dict:
         """
         Toggles a vote for a specific poll option.
         If the vote exists, it removes it.
@@ -44,7 +45,7 @@ class VoteService:
             self.session.commit()
 
             # Broadcast
-            asyncio.create_task(PollService(self.session, self.notification_service).broadcast_poll_update(poll_id))
+            background_tasks.add_task(self.poll_service.broadcast_poll_update, poll_id)
 
             return {"status": "removed", "poll_option_id": poll_option_id}
         else:
@@ -55,7 +56,7 @@ class VoteService:
             self.session.refresh(new_vote)
 
             # Broadcast
-            asyncio.create_task(PollService(self.session, self.notification_service).broadcast_poll_update(poll_id))
+            background_tasks.add_task(self.poll_service.broadcast_poll_update, poll_id)
 
             # Notify
             try:
