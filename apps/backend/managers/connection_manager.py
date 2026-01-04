@@ -1,6 +1,9 @@
 import asyncio
 from typing import Dict, List
+import logging
 from fastapi import WebSocket
+
+logger = logging.getLogger(__name__)
 
 class ConnectionManager:
     def __init__(self):
@@ -40,7 +43,7 @@ class ConnectionManager:
                 await self.disconnect(poll_id, connection)
             except Exception as e:
                 # Log other unexpected errors
-                print(f"Error broadcasting to client: {e}") # Using print as logger not imported here, or import logger
+                logger.error(f"Error broadcasting to client: {e}", exc_info=True)
                 await self.disconnect(poll_id, connection)
 
 manager = ConnectionManager()

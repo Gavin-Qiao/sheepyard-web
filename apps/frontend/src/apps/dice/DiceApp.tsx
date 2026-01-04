@@ -301,12 +301,8 @@ const DiceApp: React.FC = () => {
                     effectiveValid={effective.valid}
                     effectiveMin={effective.min}
                     effectiveMax={effective.max}
-                    N={params.N}
                     k={params.k}
-                    Limit={params.Limit}
-                    rangeMin={params.rangeMin}
                     diceValues={revealedOutcome?.diceValues ?? []}
-                    rawValue={revealedOutcome?.rawValue ?? null}
                     finalResult={revealedOutcome?.finalResult ?? null}
                     rerolls={revealedOutcome?.rerolls ?? 0}
                   />

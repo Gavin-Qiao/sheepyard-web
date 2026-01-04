@@ -6,12 +6,8 @@ export interface DiceExplanationProps {
   effectiveValid: boolean;
   effectiveMin: number;
   effectiveMax: number;
-  N: number;
   k: number;
-  Limit: number;
-  rangeMin: number;
   diceValues: number[];
-  rawValue: number | null;
   finalResult: number | null;
   rerolls: number;
 }
