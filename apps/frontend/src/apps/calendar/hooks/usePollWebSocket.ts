@@ -16,16 +16,17 @@ export const usePollWebSocket = <T>(
         // Construct WebSocket URL
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         // Use VITE_WS_URL if available, otherwise fallback to current host
-        // Use VITE_WS_URL if available, otherwise fallback to current host
         const wsBaseUrl = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.host}`;
         const wsUrl = `${wsBaseUrl}/ws/polls/${pollId}`;
 
-        console.log(`Connecting to WebSocket: ${wsUrl}`);
+        if (import.meta.env.DEV) {
+            console.log(`Connecting to WebSocket: ${wsUrl}`);
+        }
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {
-            console.log('WebSocket connected');
+            if (import.meta.env.DEV) console.log('WebSocket connected');
         };
 
         ws.onmessage = (event) => {
@@ -42,7 +43,7 @@ export const usePollWebSocket = <T>(
         };
 
         ws.onclose = (event) => {
-            console.log('WebSocket connection closed:', event.reason);
+            if (import.meta.env.DEV) console.log('WebSocket connection closed:', event.reason);
         };
 
         // Cleanup

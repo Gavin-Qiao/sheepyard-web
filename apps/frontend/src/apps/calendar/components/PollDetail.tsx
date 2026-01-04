@@ -109,25 +109,51 @@ const PollDetail: React.FC = () => {
 
 
     // WebSocket for real-time updates
-    const onPollUpdate = useCallback((updatedPoll: PollWithVotes) => {
-        setPoll(updatedPoll);
+    const onPollUpdate = useCallback((message: any) => {
+        if (!message || !message.type) return;
+
+        if (message.type === 'FULL_UPDATE') {
+            setPoll(message.payload);
+        } else if (message.type === 'VOTE_UPDATE') {
+            const { poll_option_id, user, action } = message.payload;
+
+            setPoll(prevPoll => {
+                if (!prevPoll) return null;
+
+                const updatedOptions = prevPoll.options.map(opt => {
+                    if (opt.id !== poll_option_id) return opt;
+
+                    let updatedVotes = [...opt.votes];
+                    if (action === 'add') {
+                        // Check if already voted to avoid duplicates
+                        if (!updatedVotes.some(v => v.user.id === user.id)) {
+                            updatedVotes.push({ poll_option_id, user });
+                        }
+                    } else if (action === 'remove') {
+                        updatedVotes = updatedVotes.filter(v => v.user.id !== user.id);
+                    }
+                    return { ...opt, votes: updatedVotes };
+                });
+
+                return { ...prevPoll, options: updatedOptions };
+            });
+        }
     }, []);
 
     usePollWebSocket(pollId, onPollUpdate);
 
     useEffect(() => {
-        let isMounted = true;
+        const abortController = new AbortController();
+        const { signal } = abortController;
 
         if (pollId) {
             setLoading(true);
-            fetch(`/api/polls/${pollId}`)
+            fetch(`/api/polls/${pollId}`, { signal })
                 .then(res => {
                     if (!res.ok) throw new Error('Failed to fetch poll');
                     return res.json();
                 })
                 .then(data => {
-                    if (!isMounted) return;
-
                     setPoll(data);
                     if (data.options.length > 0) {
                         const future = data.options.find((o: PollOption) => parseUTCDate(o.start_time) > new Date());
@@ -136,15 +162,19 @@ const PollDetail: React.FC = () => {
                     }
                 })
                 .catch(err => {
-                    if (isMounted) setError(err.message);
+                    if (err.name !== 'AbortError') {
+                        setError(err.message);
+                    }
                 })
                 .finally(() => {
-                    if (isMounted) setLoading(false);
+                    if (!signal.aborted) {
+                        setLoading(false);
+                    }
                 });
         }
 
         return () => {
-            isMounted = false;
+            abortController.abort();
         };
     }, [pollId]);
 

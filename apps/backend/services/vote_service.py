@@ -45,9 +45,17 @@ class VoteService:
             self.session.delete(existing_vote)
             self.session.commit()
 
-            # Broadcast
-
-            self.poll_service.broadcast_poll_update(poll_option.poll, background_tasks)
+            # Broadcast Granular Update
+            self.poll_service.session = self.session # Ensure session is shared if needed (though it should be)
+            background_tasks.add_task(
+                self.poll_service.broadcast_event, 
+                poll_option.poll_id, 
+                "VOTE_UPDATE", 
+                {"poll_option_id": poll_option_id, "user": jsonable_encoder(user), "action": "remove"}
+            )
+            
+            # Fallback/Redundancy: We might still want to trigger a full update eventually or lazily, 
+            # but for now we rely on the granular update for speed.
 
             return {"status": "removed", "poll_option_id": poll_option_id}
         else:
@@ -56,10 +64,14 @@ class VoteService:
             self.session.add(new_vote)
             self.session.commit()
             self.session.refresh(new_vote)
-
-            # Broadcast
-
-            self.poll_service.broadcast_poll_update(poll_option.poll, background_tasks)
+            
+            # Broadcast Granular Update
+            background_tasks.add_task(
+                self.poll_service.broadcast_event, 
+                poll_option.poll_id, 
+                "VOTE_UPDATE", 
+                {"poll_option_id": poll_option_id, "user": jsonable_encoder(user), "action": "add"}
+            )
 
             # Notify
             try:

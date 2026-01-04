@@ -21,19 +21,25 @@ class PollService:
         self.connection_manager = connection_manager
         self.notification_service = notification_service
 
+    async def broadcast_event(self, poll_id: int, event_type: str, payload: dict):
+        """
+        Broadcasts a structured event to all connected clients for a poll.
+        """
+        message = {
+            "type": event_type,
+            "payload": payload
+        }
+        await self.connection_manager.broadcast(poll_id, message)
+
     def broadcast_poll_update(self, poll: Poll, background_tasks: BackgroundTasks):
         """
-        Refreshes the poll to get latest state (e.g. updated options/votes) 
-        and schedules a broadcast task.
-        Avoiding redundant DB fetching by using session.refresh(poll) first, 
-        then re-fetching via get_poll() if needed to ensure relationships are up to date 
-        (or just relying on get_poll which is safer given SQLModel behaviors).
+        Refreshes the poll and broadcasts a full update event.
         """
         # Note: session.refresh(poll) only updates attributes, not relationships.
         # TODO: Consider debouncing updates for high-traffic polls to reduce database load.
         poll = self.get_poll(poll.id)
         poll_data = PollReadWithDetails.from_orm(poll)
-        background_tasks.add_task(self.connection_manager.broadcast, poll.id, jsonable_encoder(poll_data))
+        background_tasks.add_task(self.broadcast_event, poll.id, "FULL_UPDATE", jsonable_encoder(poll_data))
 
     def _generate_recurring_options(self, template_option: PollOptionCreate, pattern_str: str, end_date: Optional[datetime], start_date_override: Optional[datetime] = None) -> List[PollOption]:
         """
