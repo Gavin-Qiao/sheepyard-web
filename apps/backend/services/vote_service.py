@@ -12,9 +12,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 class VoteService:
-    def __init__(self, session: Session, poll_service: PollService, notification_service: NotificationService = NoOpNotificationService()):
+    def __init__(self, session: Session, connection_manager: ConnectionManager, notification_service: NotificationService = NoOpNotificationService()):
         self.session = session
-        self.poll_service = poll_service
+        self.connection_manager = connection_manager
         self.notification_service = notification_service
 
 
@@ -47,7 +47,7 @@ class VoteService:
 
             # Broadcast Granular Update
             background_tasks.add_task(
-                self.poll_service.broadcast_event, 
+                self.connection_manager.broadcast, 
                 poll_option.poll_id, 
                 "VOTE_UPDATE", 
                 {"poll_option_id": poll_option_id, "user": jsonable_encoder(user), "action": "remove"}
@@ -66,7 +66,7 @@ class VoteService:
             
             # Broadcast Granular Update
             background_tasks.add_task(
-                self.poll_service.broadcast_event, 
+                self.connection_manager.broadcast, 
                 poll_option.poll_id, 
                 "VOTE_UPDATE", 
                 {"poll_option_id": poll_option_id, "user": jsonable_encoder(user), "action": "add"}

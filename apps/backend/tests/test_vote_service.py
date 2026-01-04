@@ -4,7 +4,7 @@ from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 from models import User, Poll, PollOption, Vote
 from services.vote_service import VoteService
-from services.poll_service import PollService
+
 from services.notification import NoOpNotificationService
 from fastapi import BackgroundTasks
 from datetime import datetime, timedelta
@@ -31,8 +31,8 @@ def test_cast_vote_creates_vote(session: Session):
     session.refresh(user)
     session.refresh(option)
 
-    poll_service = PollService(session, MagicMock(), NoOpNotificationService())
-    service = VoteService(session, poll_service, NoOpNotificationService())
+    mock_connection_manager = MagicMock()
+    service = VoteService(session, mock_connection_manager, NoOpNotificationService())
     bg_tasks = BackgroundTasks()
 
     # Act
@@ -64,8 +64,8 @@ def test_cast_vote_toggles_vote(session: Session):
     session.add(vote)
     session.commit()
 
-    poll_service = PollService(session, MagicMock(), NoOpNotificationService())
-    service = VoteService(session, poll_service, NoOpNotificationService())
+    mock_connection_manager = MagicMock()
+    service = VoteService(session, mock_connection_manager, NoOpNotificationService())
     bg_tasks = BackgroundTasks()
 
     # Act
@@ -106,8 +106,8 @@ def test_vote_notification(session: Session):
     session.refresh(user)
     session.refresh(option)
 
-    poll_service = PollService(session, MagicMock(), mock_notifier)
-    service = VoteService(session, poll_service, mock_notifier)
+    mock_connection_manager = MagicMock()
+    service = VoteService(session, mock_connection_manager, mock_notifier)
     bg_tasks = BackgroundTasks()
     service.cast_vote(user, option.id, bg_tasks)
 

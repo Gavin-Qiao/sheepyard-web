@@ -25,11 +25,7 @@ class PollService:
         """
         Broadcasts a structured event to all connected clients for a poll.
         """
-        message = {
-            "type": event_type,
-            "payload": payload
-        }
-        await self.connection_manager.broadcast(poll_id, message)
+        await self.connection_manager.broadcast(poll_id, event_type, payload)
 
     def broadcast_poll_update(self, poll: Poll, background_tasks: BackgroundTasks):
         """

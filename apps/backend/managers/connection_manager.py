@@ -26,7 +26,11 @@ class ConnectionManager:
                 if not self.active_connections[poll_id]:
                     del self.active_connections[poll_id]
 
-    async def broadcast(self, poll_id: int, message: dict):
+    async def broadcast(self, poll_id: int, event_type: str, payload: dict):
+        message = {
+            "type": event_type,
+            "payload": payload
+        }
         # It's better not to hold the lock during network I/O.
         async with self._lock:
             connections = self.active_connections.get(poll_id, [])[:]
