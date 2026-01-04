@@ -248,7 +248,7 @@ const PollDetail: React.FC = () => {
                     method: 'DELETE',
                 });
                 if (!res.ok) throw new Error('Failed to delete option');
-                if (!res.ok) throw new Error('Failed to delete option');
+
                 // await fetchPoll(); // Removed in favor of WS
             } catch (error) {
                 console.error(error);
