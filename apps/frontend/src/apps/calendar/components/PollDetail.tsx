@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { parseUTCDate } from '../../../utils/dateUtils';
@@ -109,9 +109,11 @@ const PollDetail: React.FC = () => {
 
 
     // WebSocket for real-time updates
-    usePollWebSocket(pollId, (updatedPoll: PollWithVotes) => {
+    const onPollUpdate = useCallback((updatedPoll: PollWithVotes) => {
         setPoll(updatedPoll);
-    });
+    }, []);
+
+    usePollWebSocket(pollId, onPollUpdate);
 
     useEffect(() => {
         let isMounted = true;

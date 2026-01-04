@@ -16,7 +16,7 @@ export const usePollWebSocket = <T>(
         // Construct WebSocket URL
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         // Use VITE_WS_URL if available, otherwise fallback to current host
-        // @ts-ignore
+        // Use VITE_WS_URL if available, otherwise fallback to current host
         const wsBaseUrl = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.host}`;
         const wsUrl = `${wsBaseUrl}/ws/polls/${pollId}`;
 

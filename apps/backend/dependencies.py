@@ -41,6 +41,7 @@ async def get_current_user_ws(websocket: WebSocket, session: Session = Depends(g
     if not token:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Not authenticated")
     
+    user = _get_user_from_token(token, session)
     if not user:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token or user not found")
     return user

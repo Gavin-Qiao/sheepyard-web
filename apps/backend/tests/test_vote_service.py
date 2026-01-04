@@ -31,7 +31,7 @@ def test_cast_vote_creates_vote(session: Session):
     session.refresh(user)
     session.refresh(option)
 
-    poll_service = PollService(session, NoOpNotificationService())
+    poll_service = PollService(session, MagicMock(), NoOpNotificationService())
     service = VoteService(session, poll_service, NoOpNotificationService())
     bg_tasks = BackgroundTasks()
 
@@ -64,7 +64,7 @@ def test_cast_vote_toggles_vote(session: Session):
     session.add(vote)
     session.commit()
 
-    poll_service = PollService(session, NoOpNotificationService())
+    poll_service = PollService(session, MagicMock(), NoOpNotificationService())
     service = VoteService(session, poll_service, NoOpNotificationService())
     bg_tasks = BackgroundTasks()
 
@@ -106,7 +106,7 @@ def test_vote_notification(session: Session):
     session.refresh(user)
     session.refresh(option)
 
-    poll_service = PollService(session, mock_notifier)
+    poll_service = PollService(session, MagicMock(), mock_notifier)
     service = VoteService(session, poll_service, mock_notifier)
     bg_tasks = BackgroundTasks()
     service.cast_vote(user, option.id, bg_tasks)

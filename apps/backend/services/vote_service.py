@@ -6,7 +6,6 @@ from fastapi import HTTPException, status, BackgroundTasks
 from models import Vote, PollOption, User, Poll
 from services.notification import NotificationService, NoOpNotificationService
 from services.poll_service import PollService
-from managers.connection_manager import manager
 from fastapi.encoders import jsonable_encoder
 import logging
 
