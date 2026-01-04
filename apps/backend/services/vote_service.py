@@ -39,7 +39,7 @@ class VoteService:
         )
         existing_vote = self.session.exec(vote_statement).first()
 
-        poll_id = poll_option.poll_id
+
 
         if existing_vote:
             # Toggle OFF: Delete vote

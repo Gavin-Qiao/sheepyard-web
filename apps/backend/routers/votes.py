@@ -22,7 +22,7 @@ def vote(
     """
     # Use NoOpNotificationService for now, or inject a real one if configured
     notification_service = NoOpNotificationService()
-    poll_service = PollService(session, notification_service)
+    poll_service = PollService(session)
     vote_service = VoteService(session, poll_service, notification_service)
     result = vote_service.cast_vote(user, vote_data.poll_option_id, background_tasks)
     return result
