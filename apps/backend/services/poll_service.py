@@ -177,7 +177,9 @@ class PollService:
         return self.session.exec(statement).all()
 
     def add_poll_option(self, poll_id: int, option_create: PollOptionCreate, user: User, background_tasks: BackgroundTasks) -> PollOption:
-        poll = self.get_poll(poll_id)
+        poll = self.session.get(Poll, poll_id)
+        if not poll:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poll not found")
         if poll.creator_id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
 
@@ -205,7 +207,9 @@ class PollService:
         self.session.commit()
 
     def update_poll(self, poll_id: int, poll_update: PollUpdate, user: User, background_tasks: BackgroundTasks) -> Poll:
-        poll = self.get_poll(poll_id)
+        poll = self.session.get(Poll, poll_id)
+        if not poll:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poll not found")
         if poll.creator_id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
 
@@ -346,7 +350,9 @@ class PollService:
         return poll
 
     def delete_poll_option(self, poll_id: int, option_id: int, user: User, background_tasks: BackgroundTasks):
-        poll = self.get_poll(poll_id)
+        poll = self.session.get(Poll, poll_id)
+        if not poll:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poll not found")
         if poll.creator_id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
 

@@ -1,11 +1,11 @@
 from typing import Optional
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
-from schemas import PollReadWithDetails
+from schemas import PollReadWithDetails, UserRead
 from fastapi import HTTPException, status, BackgroundTasks
 from models import Vote, PollOption, User, Poll
 from services.notification import NotificationService, NoOpNotificationService
-from services.poll_service import PollService
+from managers.connection_manager import ConnectionManager
 from fastapi.encoders import jsonable_encoder
 import logging
 
@@ -50,7 +50,7 @@ class VoteService:
                 self.connection_manager.broadcast, 
                 poll_option.poll_id, 
                 "VOTE_UPDATE", 
-                {"poll_option_id": poll_option_id, "user": jsonable_encoder(user), "action": "remove"}
+                {"poll_option_id": poll_option_id, "user": jsonable_encoder(UserRead.from_orm(user)), "action": "remove"}
             )
             
             # Fallback/Redundancy: We might still want to trigger a full update eventually or lazily, 
@@ -69,7 +69,7 @@ class VoteService:
                 self.connection_manager.broadcast, 
                 poll_option.poll_id, 
                 "VOTE_UPDATE", 
-                {"poll_option_id": poll_option_id, "user": jsonable_encoder(user), "action": "add"}
+                {"poll_option_id": poll_option_id, "user": jsonable_encoder(UserRead.from_orm(user)), "action": "add"}
             )
 
             # Notify
