@@ -17,4 +17,4 @@ async def websocket_endpoint(
             # Keep the connection alive
             await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(poll_id, websocket)
+        await manager.disconnect(poll_id, websocket)

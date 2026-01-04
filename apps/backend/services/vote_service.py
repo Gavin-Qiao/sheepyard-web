@@ -1,12 +1,14 @@
 from typing import Optional
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
+from schemas import PollReadWithDetails
 from fastapi import HTTPException, status, BackgroundTasks
 from models import Vote, PollOption, User, Poll
 from services.notification import NotificationService, NoOpNotificationService
 from services.poll_service import PollService
+from managers.connection_manager import manager
+from fastapi.encoders import jsonable_encoder
 import logging
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +47,9 @@ class VoteService:
             self.session.commit()
 
             # Broadcast
-            background_tasks.add_task(self.poll_service.broadcast_poll_update, poll_id)
+            updated_poll = self.poll_service.get_poll(poll_id)
+            poll_data = PollReadWithDetails.from_orm(updated_poll)
+            background_tasks.add_task(manager.broadcast, poll_id, jsonable_encoder(poll_data))
 
             return {"status": "removed", "poll_option_id": poll_option_id}
         else:
@@ -56,7 +60,9 @@ class VoteService:
             self.session.refresh(new_vote)
 
             # Broadcast
-            background_tasks.add_task(self.poll_service.broadcast_poll_update, poll_id)
+            updated_poll = self.poll_service.get_poll(poll_id)
+            poll_data = PollReadWithDetails.from_orm(updated_poll)
+            background_tasks.add_task(manager.broadcast, poll_id, jsonable_encoder(poll_data))
 
             # Notify
             try:

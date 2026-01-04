@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 from models import Poll, PollOption, User, Vote
 from schemas import PollCreate, PollOptionCreate, PollUpdate, PollReadWithDetails
 from fastapi.encoders import jsonable_encoder
@@ -11,7 +11,7 @@ import logging
 from dateutil import rrule
 from dateutil.parser import parse
 from datetime import datetime, timedelta, timezone
-import asyncio
+
 
 logger = logging.getLogger(__name__)
 
@@ -20,20 +20,7 @@ class PollService:
         self.session = session
         self.notification_service = notification_service
 
-    async def broadcast_poll_update(self, poll_id: int):
-        """Helper to broadcast poll state to all connected clients."""
-        try:
-            # Re-fetch fresh poll state using existing method
-            # We need to manually serialize it because the manager accepts dicts
-            # We can't use Pydantic models directly if send_json expects a dict
-            # or we can rely on fastapi.encoders.jsonable_encoder
-
-            poll = self.get_poll(poll_id)
-            # Use schema for clean serialization (handles relations)
-            poll_data = PollReadWithDetails.from_orm(poll)
-            await manager.broadcast(poll_id, jsonable_encoder(poll_data))
-        except Exception as e:
-            logger.error(f"Failed to broadcast poll update: {e}")
+# Helper method broadcast_poll_update removed in favor of direct injection via BackgroundTasks
 
     def _generate_recurring_options(self, template_option: PollOptionCreate, pattern_str: str, end_date: Optional[datetime], start_date_override: Optional[datetime] = None) -> List[PollOption]:
         """
@@ -174,7 +161,7 @@ class PollService:
         )
         return self.session.exec(statement).all()
 
-    def add_poll_option(self, poll_id: int, option_create: PollOptionCreate, user: User) -> PollOption:
+    def add_poll_option(self, poll_id: int, option_create: PollOptionCreate, user: User, background_tasks: BackgroundTasks) -> PollOption:
         poll = self.get_poll(poll_id)
         if poll.creator_id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
@@ -190,7 +177,9 @@ class PollService:
         self.session.refresh(db_option)
 
         # Broadcast
-        asyncio.create_task(self.broadcast_poll_update(poll_id))
+        updated_poll = self.get_poll(poll_id)
+        poll_data = PollReadWithDetails.from_orm(updated_poll)
+        background_tasks.add_task(manager.broadcast, poll_id, jsonable_encoder(poll_data))
 
         return db_option
 
@@ -202,7 +191,7 @@ class PollService:
         self.session.delete(poll)
         self.session.commit()
 
-    def update_poll(self, poll_id: int, poll_update: PollUpdate, user: User) -> Poll:
+    def update_poll(self, poll_id: int, poll_update: PollUpdate, user: User, background_tasks: BackgroundTasks) -> Poll:
         poll = self.get_poll(poll_id)
         if poll.creator_id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
@@ -243,11 +232,11 @@ class PollService:
                     end_time=template_opt_model.end_time
                 )
             else:
-                 template = PollOptionCreate(
-                     label="Event",
-                     start_time=cutoff,
-                     end_time=cutoff + timedelta(hours=1)
-                 )
+                template = PollOptionCreate(
+                    label="Event",
+                    start_time=cutoff,
+                    end_time=cutoff + timedelta(hours=1)
+                )
 
             # Generate new options from cutoff
             new_options_models = self._generate_recurring_options(
@@ -339,11 +328,13 @@ class PollService:
         self.session.refresh(poll)
 
         # Broadcast
-        asyncio.create_task(self.broadcast_poll_update(poll_id))
+        updated_poll = self.get_poll(poll_id)
+        poll_data = PollReadWithDetails.from_orm(updated_poll)
+        background_tasks.add_task(manager.broadcast, poll_id, jsonable_encoder(poll_data))
 
         return poll
 
-    def delete_poll_option(self, poll_id: int, option_id: int, user: User):
+    def delete_poll_option(self, poll_id: int, option_id: int, user: User, background_tasks: BackgroundTasks):
         poll = self.get_poll(poll_id)
         if poll.creator_id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
@@ -359,4 +350,6 @@ class PollService:
         self.session.commit()
 
         # Broadcast
-        asyncio.create_task(self.broadcast_poll_update(poll_id))
+        updated_poll = self.get_poll(poll_id)
+        poll_data = PollReadWithDetails.from_orm(updated_poll)
+        background_tasks.add_task(manager.broadcast, poll_id, jsonable_encoder(poll_data))

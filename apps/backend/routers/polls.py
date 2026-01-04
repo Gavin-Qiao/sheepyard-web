@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlmodel import Session
 from typing import List
 
@@ -48,6 +48,7 @@ def get_poll(
 def update_poll(
     poll_id: int,
     poll_update: PollUpdate,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
@@ -55,7 +56,7 @@ def update_poll(
     Update a poll's title and description.
     """
     poll_service = PollService(session)
-    return poll_service.update_poll(poll_id, poll_update, user)
+    return poll_service.update_poll(poll_id, poll_update, user, background_tasks)
 
 @router.delete("/polls/{poll_id}")
 def delete_poll(
@@ -74,6 +75,7 @@ def delete_poll(
 def add_poll_option(
     poll_id: int,
     option_data: PollOptionCreate,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
@@ -81,12 +83,13 @@ def add_poll_option(
     Add a new option to a poll.
     """
     poll_service = PollService(session)
-    return poll_service.add_poll_option(poll_id, option_data, user)
+    return poll_service.add_poll_option(poll_id, option_data, user, background_tasks)
 
 @router.delete("/polls/{poll_id}/options/{option_id}")
 def delete_poll_option(
     poll_id: int,
     option_id: int,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
@@ -94,5 +97,5 @@ def delete_poll_option(
     Delete a poll option.
     """
     poll_service = PollService(session)
-    poll_service.delete_poll_option(poll_id, option_id, user)
+    poll_service.delete_poll_option(poll_id, option_id, user, background_tasks)
     return {"ok": True}
