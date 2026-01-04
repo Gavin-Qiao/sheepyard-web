@@ -42,11 +42,23 @@ class ConnectionManager:
             return_exceptions=True
         )
 
+        failed_connections = []
         for connection, result in zip(connections, results):
             if isinstance(result, Exception):
+                failed_connections.append(connection)
                 # An exception occurred, which likely means the client disconnected.
                 # We can log unexpected errors for debugging.
                 if not isinstance(result, RuntimeError):
                     logger.error(f"Error broadcasting to client: {result}", exc_info=True)
-                await self.disconnect(poll_id, connection)
+        
+        if failed_connections:
+            async with self._lock:
+                if poll_id in self.active_connections:
+                    # Use a set for efficient filtering
+                    failed_set = set(failed_connections)
+                    self.active_connections[poll_id] = [
+                        conn for conn in self.active_connections[poll_id] if conn not in failed_set
+                    ]
+                    if not self.active_connections[poll_id]:
+                        del self.active_connections[poll_id]
 
