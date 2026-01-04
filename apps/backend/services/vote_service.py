@@ -46,7 +46,6 @@ class VoteService:
             self.session.commit()
 
             # Broadcast Granular Update
-            self.poll_service.session = self.session # Ensure session is shared if needed (though it should be)
             background_tasks.add_task(
                 self.poll_service.broadcast_event, 
                 poll_option.poll_id, 

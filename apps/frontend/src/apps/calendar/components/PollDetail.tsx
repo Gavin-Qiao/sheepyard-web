@@ -62,6 +62,10 @@ interface PollWithVotes extends PollDetailData {
     options: OptionWithVotes[];
 }
 
+type WebSocketMessage =
+    | { type: 'FULL_UPDATE'; payload: PollWithVotes }
+    | { type: 'VOTE_UPDATE'; payload: { poll_option_id: number; user: User; action: 'add' | 'remove'; } };
+
 const PollDetail: React.FC = () => {
     const { pollId } = useParams();
     const navigate = useNavigate();
@@ -109,7 +113,7 @@ const PollDetail: React.FC = () => {
 
 
     // WebSocket for real-time updates
-    const onPollUpdate = useCallback((message: any) => {
+    const onPollUpdate = useCallback((message: WebSocketMessage) => {
         if (!message || !message.type) return;
 
         if (message.type === 'FULL_UPDATE') {
