@@ -11,6 +11,7 @@ import ConfirmModal from './Modal';
 import ShareModal from './ShareModal';
 import MonthView from '../../../components/Calendar/MonthView';
 import WeeklyScheduler, { SchedulerEvent } from '../../../components/Calendar/WeeklyScheduler'; // Replaced PollWeekView
+import { usePollWebSocket } from '../hooks/usePollWebSocket';
 
 // Helper for classes
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -107,8 +108,12 @@ const PollDetail: React.FC = () => {
 
 
 
+    // WebSocket for real-time updates
+    usePollWebSocket(pollId, (updatedPoll: PollWithVotes) => {
+        setPoll(updatedPoll);
+    });
+
     useEffect(() => {
-        let ws: WebSocket | null = null;
         let isMounted = true;
 
         if (pollId) {
@@ -127,35 +132,6 @@ const PollDetail: React.FC = () => {
                         if (future) setCurrentDate(parseUTCDate(future.start_time));
                         else setCurrentDate(parseUTCDate(data.options[data.options.length - 1].start_time));
                     }
-
-                    // WebSocket Connection is established *after* initial data is fetched
-                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    const wsBaseUrl = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.host}`;
-                    const wsUrl = `${wsBaseUrl}/ws/polls/${pollId}`;
-
-                    ws = new WebSocket(wsUrl);
-
-                    ws.onmessage = (event) => {
-                        if (!isMounted) return;
-                        try {
-                            const updatedPoll = JSON.parse(event.data);
-                            setPoll(updatedPoll);
-                        } catch (e) {
-                            console.error('Failed to parse WebSocket message', e);
-                        }
-                    };
-
-                    ws.onerror = (error) => {
-                        if (isMounted) {
-                            console.error('WebSocket error:', error);
-                        }
-                    };
-
-                    ws.onclose = (event) => {
-                        if (isMounted) {
-                            console.log('WebSocket connection closed:', event.reason);
-                        }
-                    };
                 })
                 .catch(err => {
                     if (isMounted) setError(err.message);
@@ -167,9 +143,6 @@ const PollDetail: React.FC = () => {
 
         return () => {
             isMounted = false;
-            if (ws) {
-                ws.close();
-            }
         };
     }, [pollId]);
 

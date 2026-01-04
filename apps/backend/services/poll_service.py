@@ -6,7 +6,7 @@ from models import Poll, PollOption, User, Vote
 from schemas import PollCreate, PollOptionCreate, PollUpdate, PollReadWithDetails
 from fastapi.encoders import jsonable_encoder
 from services.notification import NotificationService, NoOpNotificationService
-from managers.connection_manager import manager
+from managers.connection_manager import ConnectionManager
 import logging
 from dateutil import rrule
 from dateutil.parser import parse
@@ -16,8 +16,9 @@ from datetime import datetime, timedelta, timezone
 logger = logging.getLogger(__name__)
 
 class PollService:
-    def __init__(self, session: Session, notification_service: NotificationService = NoOpNotificationService()):
+    def __init__(self, session: Session, connection_manager: ConnectionManager, notification_service: NotificationService = NoOpNotificationService()):
         self.session = session
+        self.connection_manager = connection_manager
         self.notification_service = notification_service
 
     def broadcast_poll_update(self, poll: Poll, background_tasks: BackgroundTasks):
@@ -32,7 +33,7 @@ class PollService:
         # TODO: Consider debouncing updates for high-traffic polls to reduce database load.
         poll = self.get_poll(poll.id)
         poll_data = PollReadWithDetails.from_orm(poll)
-        background_tasks.add_task(manager.broadcast, poll.id, jsonable_encoder(poll_data))
+        background_tasks.add_task(self.connection_manager.broadcast, poll.id, jsonable_encoder(poll_data))
 
     def _generate_recurring_options(self, template_option: PollOptionCreate, pattern_str: str, end_date: Optional[datetime], start_date_override: Optional[datetime] = None) -> List[PollOption]:
         """

@@ -46,4 +46,3 @@ class ConnectionManager:
                     logger.error(f"Error broadcasting to client: {result}", exc_info=True)
                 await self.disconnect(poll_id, connection)
 
-manager = ConnectionManager()

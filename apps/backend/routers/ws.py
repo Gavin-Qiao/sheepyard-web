@@ -1,7 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from models import User
 from dependencies import get_current_user_ws
-from managers.connection_manager import manager
 
 router = APIRouter()
 
@@ -11,6 +10,7 @@ async def websocket_endpoint(
     poll_id: int,
     user: User = Depends(get_current_user_ws)
 ):
+    manager = websocket.app.state.connection_manager
     await manager.connect(poll_id, websocket)
     try:
         while True:

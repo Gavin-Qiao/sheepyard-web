@@ -4,7 +4,7 @@ from database import engine
 from sqlalchemy import text
 # Import models to ensure they are registered with SQLModel
 from models import User, Poll, PollOption, Vote, UserMention
-
+from managers.connection_manager import ConnectionManager
 from routers import auth, polls, votes, discord, users, profile, ws
 
 print("Initializing FastAPI app...")
@@ -120,6 +120,7 @@ from tasks import check_deadlines
 @app.on_event("startup")
 def on_startup():
     print("Startup event triggered.")
+    app.state.connection_manager = ConnectionManager()
     create_db_and_tables()
     asyncio.create_task(check_deadlines())
 
