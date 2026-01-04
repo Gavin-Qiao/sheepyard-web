@@ -14,9 +14,7 @@ class ConnectionManager:
     async def connect(self, poll_id: int, websocket: WebSocket):
         await websocket.accept()
         async with self._lock:
-            if poll_id not in self.active_connections:
-                self.active_connections[poll_id] = []
-            self.active_connections[poll_id].append(websocket)
+            self.active_connections.setdefault(poll_id, []).append(websocket)
 
     async def disconnect(self, poll_id: int, websocket: WebSocket):
         async with self._lock:
@@ -33,17 +31,19 @@ class ConnectionManager:
         async with self._lock:
             connections = self.active_connections.get(poll_id, [])[:]
         
-        for connection in connections:
-            try:
-                await connection.send_json(message)
-            except RuntimeError as e:
-                # e.g. "RuntimeError: Unexpected ASGI message 'websocket.disconnect', while running 'websocket.send'"
-                # We can log this but it's expected if client disconnected.
-                # logger.info(f"Client disconnected during broadcast: {e}")
-                await self.disconnect(poll_id, connection)
-            except Exception as e:
-                # Log other unexpected errors
-                logger.error(f"Error broadcasting to client: {e}", exc_info=True)
+        
+        # Use asyncio.gather to send messages concurrently for better performance.
+        results = await asyncio.gather(
+            *[connection.send_json(message) for connection in connections],
+            return_exceptions=True
+        )
+
+        for connection, result in zip(connections, results):
+            if isinstance(result, Exception):
+                # An exception occurred, which likely means the client disconnected.
+                # We can log unexpected errors for debugging.
+                if not isinstance(result, RuntimeError):
+                    logger.error(f"Error broadcasting to client: {result}", exc_info=True)
                 await self.disconnect(poll_id, connection)
 
 manager = ConnectionManager()
