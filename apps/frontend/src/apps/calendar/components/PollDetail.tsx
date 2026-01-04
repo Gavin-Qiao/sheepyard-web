@@ -144,6 +144,18 @@ const PollDetail: React.FC = () => {
                             // console.error('Failed to parse WebSocket message', e);
                         }
                     };
+
+                    ws.onerror = (error) => {
+                        if (isMounted) {
+                            console.error('WebSocket error:', error);
+                        }
+                    };
+
+                    ws.onclose = (event) => {
+                        if (isMounted) {
+                            console.log('WebSocket connection closed:', event.reason);
+                        }
+                    };
                 })
                 .catch(err => {
                     if (isMounted) setError(err.message);

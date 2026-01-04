@@ -29,8 +29,7 @@ class PollService:
         (or just relying on get_poll which is safer given SQLModel behaviors).
         """
         # Note: session.refresh(poll) only updates attributes, not relationships.
-        # To guarantee we broadcast the full, updated structure including options and votes,
-        # we re-fetch using get_poll which has the selectinload options.
+        # TODO: Consider debouncing updates for high-traffic polls to reduce database load.
         poll = self.get_poll(poll.id)
         poll_data = PollReadWithDetails.from_orm(poll)
         background_tasks.add_task(manager.broadcast, poll.id, jsonable_encoder(poll_data))

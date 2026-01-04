@@ -47,7 +47,7 @@ class VoteService:
             self.session.commit()
 
             # Broadcast
-            # Broadcast
+
             self.poll_service.broadcast_poll_update(poll_option.poll, background_tasks)
 
             return {"status": "removed", "poll_option_id": poll_option_id}
@@ -59,7 +59,7 @@ class VoteService:
             self.session.refresh(new_vote)
 
             # Broadcast
-            # Broadcast
+
             self.poll_service.broadcast_poll_update(poll_option.poll, background_tasks)
 
             # Notify
