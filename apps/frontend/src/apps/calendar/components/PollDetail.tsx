@@ -105,26 +105,7 @@ const PollDetail: React.FC = () => {
             .catch(() => { }); // Ignore error, just wont highlight
     }, []);
 
-    const fetchPoll = () => {
-        if (!pollId) return;
-        fetch(`/api/polls/${pollId}`)
-            .then(res => {
-                if (!res.ok) throw new Error('Failed to fetch poll');
-                return res.json();
-            })
-            .then(data => {
-                setPoll(data);
-                // If options exist, set currentDate to start of first option?
-                if (data.options.length > 0) {
-                    // Check if there are future options?
-                    const future = data.options.find((o: PollOption) => parseUTCDate(o.start_time) > new Date());
-                    if (future) setCurrentDate(parseUTCDate(future.start_time));
-                    else setCurrentDate(parseUTCDate(data.options[data.options.length - 1].start_time));
-                }
-            })
-            .catch(err => setError(err.message))
-            .finally(() => setLoading(false));
-    };
+
 
     useEffect(() => {
         let ws: WebSocket | null = null;
@@ -193,8 +174,7 @@ const PollDetail: React.FC = () => {
 
             if (!res.ok) throw new Error('Vote failed');
 
-            // Refresh poll data to see updated votes
-            await fetchPoll();
+
         } catch (error) {
             console.error(error);
             alert('Failed to cast vote.');
@@ -252,7 +232,6 @@ const PollDetail: React.FC = () => {
                 })
             });
             if (!res.ok) throw new Error('Failed to add option');
-            await fetchPoll();
         } catch (error) {
             console.error(error);
             alert('Failed to add option.');
@@ -269,7 +248,8 @@ const PollDetail: React.FC = () => {
                     method: 'DELETE',
                 });
                 if (!res.ok) throw new Error('Failed to delete option');
-                await fetchPoll();
+                if (!res.ok) throw new Error('Failed to delete option');
+                // await fetchPoll(); // Removed in favor of WS
             } catch (error) {
                 console.error(error);
                 alert('Failed to delete option.');
