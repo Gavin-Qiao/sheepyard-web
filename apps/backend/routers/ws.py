@@ -9,7 +9,7 @@ router = APIRouter()
 async def websocket_endpoint(
     websocket: WebSocket,
     poll_id: int,
-    user: User = Depends(get_current_user_ws)
+    _user: User = Depends(get_current_user_ws)
 ):
     manager = websocket.app.state.connection_manager
     await manager.connect(poll_id, websocket)
