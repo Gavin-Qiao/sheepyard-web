@@ -145,8 +145,17 @@ const PollDetail: React.FC = () => {
             });
         } else if (message.type === 'POLL_DELETED') {
             if (message.payload.poll_id === Number(pollId)) {
-                alert('This poll has been deleted.');
-                navigate('/apps/calendar');
+                setModalConfig({
+                    isOpen: true,
+                    title: "Event Deleted",
+                    message: "This event has been deleted by the organizer.",
+                    confirmText: "Go to Calendar",
+                    variant: 'info',
+                    onConfirm: () => {
+                        setModalConfig(prev => ({ ...prev, isOpen: false }));
+                        navigate('/apps/calendar');
+                    }
+                });
             }
         }
     }, [pollId, navigate]);

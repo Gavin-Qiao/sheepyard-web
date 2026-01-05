@@ -73,5 +73,5 @@ export const usePollWebSocket = <T>(
             }
             wsRef.current = null;
         };
-    }, [pollId, onUpdate, onOpen, reconnectAttempt]);
+    }, [pollId, onUpdate, onOpen, onClose, reconnectAttempt]);
 };
