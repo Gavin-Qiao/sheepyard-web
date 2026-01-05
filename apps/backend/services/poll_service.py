@@ -27,15 +27,15 @@ class PollService:
         """
         await self.connection_manager.broadcast(poll_id, event_type, payload)
 
-    def broadcast_poll_update(self, poll: Poll, background_tasks: BackgroundTasks):
+    def broadcast_poll_update(self, poll_id: int, background_tasks: BackgroundTasks):
         """
         Refreshes the poll and broadcasts a full update event.
         """
         # Note: session.refresh(poll) only updates attributes, not relationships.
         # TODO: Consider debouncing updates for high-traffic polls to reduce database load.
-        poll = self.get_poll(poll.id)
+        poll = self.get_poll(poll_id)
         poll_data = PollReadWithDetails.from_orm(poll)
-        background_tasks.add_task(self.broadcast_event, poll.id, "FULL_UPDATE", jsonable_encoder(poll_data))
+        background_tasks.add_task(self.broadcast_event, poll_id, "FULL_UPDATE", jsonable_encoder(poll_data))
 
     def _generate_recurring_options(self, template_option: PollOptionCreate, pattern_str: str, end_date: Optional[datetime], start_date_override: Optional[datetime] = None) -> List[PollOption]:
         """
@@ -194,7 +194,7 @@ class PollService:
         self.session.refresh(db_option)
 
         # Broadcast
-        self.broadcast_poll_update(poll, background_tasks)
+        self.broadcast_poll_update(poll.id, background_tasks)
 
         return db_option
 
@@ -345,7 +345,7 @@ class PollService:
 
 
         # Broadcast
-        # Broadcast and return the updated poll to avoid a second DB query.
+        # Broadcast and return the updated poll, reusing the fetched object to avoid an extra DB query.
         full_poll = self.get_poll(poll.id)
         poll_data = PollReadWithDetails.from_orm(full_poll)
         background_tasks.add_task(self.broadcast_event, poll.id, "FULL_UPDATE", jsonable_encoder(poll_data))
@@ -369,4 +369,4 @@ class PollService:
         self.session.commit()
 
         # Broadcast
-        self.broadcast_poll_update(poll, background_tasks)
+        self.broadcast_poll_update(poll.id, background_tasks)

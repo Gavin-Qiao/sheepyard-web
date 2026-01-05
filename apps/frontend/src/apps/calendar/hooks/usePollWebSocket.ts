@@ -6,7 +6,8 @@ import { useEffect, useRef } from 'react';
 
 export const usePollWebSocket = <T>(
     pollId: string | number | undefined,
-    onUpdate: (data: T) => void
+    onUpdate: (data: T) => void,
+    onOpen?: () => void
 ) => {
     const wsRef = useRef<WebSocket | null>(null);
 
@@ -27,6 +28,7 @@ export const usePollWebSocket = <T>(
 
         ws.onopen = () => {
             if (import.meta.env.DEV) console.log('WebSocket connected');
+            onOpen?.();
         };
 
         ws.onmessage = (event) => {
@@ -53,5 +55,5 @@ export const usePollWebSocket = <T>(
             }
             wsRef.current = null;
         };
-    }, [pollId, onUpdate]); // Re-run if pollId changes
+    }, [pollId, onUpdate, onOpen]); // Re-run if pollId changes
 };

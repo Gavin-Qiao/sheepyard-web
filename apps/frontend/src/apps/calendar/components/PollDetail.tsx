@@ -77,6 +77,7 @@ const PollDetail: React.FC = () => {
     // Default view mode is now 'week' (Calendar)
     const [viewMode, setViewMode] = useState<'list' | 'month' | 'week'>('week');
     const [currentDate, setCurrentDate] = useState(new Date()); // For Calendar Views
+    const [wsReady, setWsReady] = useState(false);
 
     // New Option State (for List view fallback)
 
@@ -144,9 +145,14 @@ const PollDetail: React.FC = () => {
         }
     }, []);
 
-    usePollWebSocket(pollId, onPollUpdate);
+    const onWsOpen = useCallback(() => {
+        setWsReady(true);
+    }, []);
+
+    usePollWebSocket(pollId, onPollUpdate, onWsOpen);
 
     useEffect(() => {
+        if (!wsReady) return;
         const abortController = new AbortController();
         const { signal } = abortController;
 
@@ -180,7 +186,7 @@ const PollDetail: React.FC = () => {
         return () => {
             abortController.abort();
         };
-    }, [pollId]);
+    }, [pollId, wsReady]);
 
     const handleVote = async (optionId: number) => {
         if (togglingOptionId) return; // Prevent double click
