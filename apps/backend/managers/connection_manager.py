@@ -62,3 +62,16 @@ class ConnectionManager:
                     if not self.active_connections[poll_id]:
                         del self.active_connections[poll_id]
 
+    async def close_connections_for_poll(self, poll_id: int):
+        async with self._lock:
+            if poll_id in self.active_connections:
+                connections = self.active_connections[poll_id]
+                # Close all connections
+                # Use asyncio.gather for efficiency
+                await asyncio.gather(
+                    *[connection.close() for connection in connections],
+                    return_exceptions=True
+                )
+                if poll_id in self.active_connections:
+                     del self.active_connections[poll_id]
+

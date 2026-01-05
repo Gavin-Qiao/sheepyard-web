@@ -7,7 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 export const usePollWebSocket = <T>(
     pollId: string | number | undefined,
     onUpdate: (data: T) => void,
-    onOpen?: () => void
+    onOpen?: () => void,
+    onClose?: () => void
 ) => {
     const wsRef = useRef<WebSocket | null>(null);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,6 +50,7 @@ export const usePollWebSocket = <T>(
 
         ws.onclose = (event) => {
             if (import.meta.env.DEV) console.log('WebSocket connection closed:', event.reason);
+            onClose?.();
 
             // Attempt to reconnect if not closed cleanly (or always, depending on requirement)
             // Code 1000 is normal closure. 

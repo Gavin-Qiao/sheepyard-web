@@ -155,7 +155,11 @@ const PollDetail: React.FC = () => {
         setWsReady(true);
     }, []);
 
-    usePollWebSocket(pollId, onPollUpdate, onWsOpen);
+    const onWsClose = useCallback(() => {
+        setWsReady(false);
+    }, []);
+
+    usePollWebSocket(pollId, onPollUpdate, onWsOpen, onWsClose);
 
     useEffect(() => {
         if (!wsReady) return;

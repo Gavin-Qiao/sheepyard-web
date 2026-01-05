@@ -208,9 +208,12 @@ class PollService:
     def delete_poll(self, poll_id: int, user: User, background_tasks: BackgroundTasks):
         poll = self._get_poll_and_verify_creator(poll_id, user)
 
-        # Broadcast DELETION event before deleting data
-        background_tasks.add_task(self.connection_manager.broadcast, poll_id, "POLL_DELETED", {"poll_id": poll_id})
-        # Note: ConnectionManager could also close connections here if we wanted to be strict.
+        # Broadcast and Close connections
+        async def broadcast_and_close(pid: int):
+            await self.connection_manager.broadcast(pid, "POLL_DELETED", {"poll_id": pid})
+            await self.connection_manager.close_connections_for_poll(pid)
+
+        background_tasks.add_task(broadcast_and_close, poll_id)
 
         self.session.delete(poll)
         self.session.commit()
