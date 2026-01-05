@@ -342,7 +342,7 @@ class PollService:
 
         self.session.add(poll)
         self.session.commit()
-        self.session.refresh(poll)
+
 
         # Broadcast
         self.broadcast_poll_update(poll, background_tasks)
