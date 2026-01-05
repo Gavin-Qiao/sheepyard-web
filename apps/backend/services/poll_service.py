@@ -345,9 +345,11 @@ class PollService:
 
 
         # Broadcast
-        self.broadcast_poll_update(poll, background_tasks)
-
-        return self.get_poll(poll_id)
+        # Broadcast and return the updated poll to avoid a second DB query.
+        full_poll = self.get_poll(poll.id)
+        poll_data = PollReadWithDetails.from_orm(full_poll)
+        background_tasks.add_task(self.broadcast_event, poll.id, "FULL_UPDATE", jsonable_encoder(poll_data))
+        return full_poll
 
     def delete_poll_option(self, poll_id: int, option_id: int, user: User, background_tasks: BackgroundTasks):
         poll = self.session.get(Poll, poll_id)
