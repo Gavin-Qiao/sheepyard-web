@@ -201,10 +201,20 @@ class PollService:
 
         return db_option
 
-    def delete_poll(self, poll_id: int, user: User):
-        poll = self.get_poll(poll_id)
+    def delete_poll(self, poll_id: int, user: User, background_tasks: BackgroundTasks):
+        poll = self.session.get(Poll, poll_id)
+        if not poll:
+             # If poll is not found, it might be already deleted.
+             # We can still try to broadcast deletion just in case, but usually we throw 404 or ignore.
+             # Standard behavior is 404.
+             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poll not found")
+
         if poll.creator_id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this poll")
+
+        # Broadcast DELETION event before deleting data
+        background_tasks.add_task(self.connection_manager.broadcast, poll_id, "POLL_DELETED", {"poll_id": poll_id})
+        # Note: ConnectionManager could also close connections here if we wanted to be strict.
 
         self.session.delete(poll)
         self.session.commit()

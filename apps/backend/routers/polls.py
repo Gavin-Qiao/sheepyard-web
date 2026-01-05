@@ -66,6 +66,7 @@ def update_poll(
 @router.delete("/polls/{poll_id}")
 def delete_poll(
     poll_id: int,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
     connection_manager: ConnectionManager = Depends(get_connection_manager)
@@ -74,7 +75,7 @@ def delete_poll(
     Delete a poll.
     """
     poll_service = PollService(session, connection_manager)
-    poll_service.delete_poll(poll_id, user)
+    poll_service.delete_poll(poll_id, user, background_tasks)
     return {"ok": True}
 
 @router.post("/polls/{poll_id}/options", response_model=PollOptionRead)
