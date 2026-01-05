@@ -347,7 +347,7 @@ class PollService:
         # Broadcast
         self.broadcast_poll_update(poll, background_tasks)
 
-        return poll
+        return self.get_poll(poll_id)
 
     def delete_poll_option(self, poll_id: int, option_id: int, user: User, background_tasks: BackgroundTasks):
         poll = self.session.get(Poll, poll_id)
