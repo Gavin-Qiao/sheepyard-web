@@ -27,7 +27,7 @@ class PollService:
         """
         await self.connection_manager.broadcast(poll_id, event_type, payload)
 
-    def broadcast_poll_update(self, poll_id: int, background_tasks: BackgroundTasks):
+    def broadcast_poll_update(self, poll_id: int, background_tasks: BackgroundTasks, return_poll: bool = False) -> Optional[Poll]:
         """
         Refreshes the poll and broadcasts a full update event.
         """
@@ -36,6 +36,9 @@ class PollService:
         poll = self.get_poll(poll_id)
         poll_data = PollReadWithDetails.from_orm(poll)
         background_tasks.add_task(self.broadcast_event, poll_id, "FULL_UPDATE", jsonable_encoder(poll_data))
+        if return_poll:
+            return poll
+        return None
 
     def _generate_recurring_options(self, template_option: PollOptionCreate, pattern_str: str, end_date: Optional[datetime], start_date_override: Optional[datetime] = None) -> List[PollOption]:
         """
@@ -344,12 +347,8 @@ class PollService:
         self.session.commit()
 
 
-        # Broadcast
-        # Broadcast and return the updated poll, reusing the fetched object to avoid an extra DB query.
-        full_poll = self.get_poll(poll.id)
-        poll_data = PollReadWithDetails.from_orm(full_poll)
-        background_tasks.add_task(self.broadcast_event, poll.id, "FULL_UPDATE", jsonable_encoder(poll_data))
-        return full_poll
+        # Broadcast and return the updated poll.
+        return self.broadcast_poll_update(poll.id, background_tasks, return_poll=True)
 
     def delete_poll_option(self, poll_id: int, option_id: int, user: User, background_tasks: BackgroundTasks):
         poll = self.session.get(Poll, poll_id)
