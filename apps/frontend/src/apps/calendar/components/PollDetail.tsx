@@ -64,7 +64,8 @@ interface PollWithVotes extends PollDetailData {
 
 type WebSocketMessage =
     | { type: 'FULL_UPDATE'; payload: PollWithVotes }
-    | { type: 'VOTE_UPDATE'; payload: { poll_option_id: number; user: User; action: 'add' | 'remove'; } };
+    | { type: 'VOTE_UPDATE'; payload: { poll_option_id: number; user: User; action: 'add' | 'remove'; } }
+    | { type: 'POLL_DELETED'; payload: { poll_id: number } };
 
 const PollDetail: React.FC = () => {
     const { pollId } = useParams();
@@ -142,8 +143,13 @@ const PollDetail: React.FC = () => {
 
                 return { ...prevPoll, options: updatedOptions };
             });
+        } else if (message.type === 'POLL_DELETED') {
+            if (message.payload.poll_id === Number(pollId)) {
+                alert('This poll has been deleted.');
+                navigate('/apps/calendar');
+            }
         }
-    }, []);
+    }, [pollId, navigate]);
 
     const onWsOpen = useCallback(() => {
         setWsReady(true);
