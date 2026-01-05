@@ -1,21 +1,52 @@
 from typing import List, Optional
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 from models import Poll, PollOption, User, Vote
-from schemas import PollCreate, PollOptionCreate, PollUpdate
+from schemas import PollCreate, PollOptionCreate, PollUpdate, PollReadWithDetails
+from fastapi.encoders import jsonable_encoder
 from services.notification import NotificationService, NoOpNotificationService
+from managers.connection_manager import ConnectionManager
 import logging
 from dateutil import rrule
 from dateutil.parser import parse
 from datetime import datetime, timedelta, timezone
 
+
 logger = logging.getLogger(__name__)
 
 class PollService:
-    def __init__(self, session: Session, notification_service: NotificationService = NoOpNotificationService()):
+    def __init__(self, session: Session, connection_manager: ConnectionManager, notification_service: NotificationService = NoOpNotificationService()):
         self.session = session
+        self.connection_manager = connection_manager
         self.notification_service = notification_service
+
+    def _get_poll_and_verify_creator(self, poll_id: int, user: User) -> Poll:
+        poll = self.session.get(Poll, poll_id)
+        if not poll:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poll not found")
+        if poll.creator_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
+        return poll
+
+    async def broadcast_event(self, poll_id: int, event_type: str, payload: dict):
+        """
+        Broadcasts a structured event to all connected clients for a poll.
+        """
+        await self.connection_manager.broadcast(poll_id, event_type, payload)
+
+    def broadcast_poll_update(self, poll_id: int, background_tasks: BackgroundTasks, return_poll: bool = False) -> Optional[Poll]:
+        """
+        Refreshes the poll and broadcasts a full update event.
+        """
+        # Note: session.refresh(poll) only updates attributes, not relationships.
+        # TODO: Consider debouncing updates for high-traffic polls to reduce database load.
+        poll = self.get_poll(poll_id)
+        poll_data = PollReadWithDetails.from_orm(poll)
+        background_tasks.add_task(self.broadcast_event, poll_id, "FULL_UPDATE", jsonable_encoder(poll_data))
+        if return_poll:
+            return poll
+        return None
 
     def _generate_recurring_options(self, template_option: PollOptionCreate, pattern_str: str, end_date: Optional[datetime], start_date_override: Optional[datetime] = None) -> List[PollOption]:
         """
@@ -156,10 +187,8 @@ class PollService:
         )
         return self.session.exec(statement).all()
 
-    def add_poll_option(self, poll_id: int, option_create: PollOptionCreate, user: User) -> PollOption:
-        poll = self.get_poll(poll_id)
-        if poll.creator_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
+    def add_poll_option(self, poll_id: int, option_create: PollOptionCreate, user: User, background_tasks: BackgroundTasks) -> PollOption:
+        poll = self._get_poll_and_verify_creator(poll_id, user)
 
         db_option = PollOption(
             poll_id=poll_id,
@@ -170,20 +199,27 @@ class PollService:
         self.session.add(db_option)
         self.session.commit()
         self.session.refresh(db_option)
+
+        # Broadcast
+        self.broadcast_poll_update(poll.id, background_tasks)
+
         return db_option
 
-    def delete_poll(self, poll_id: int, user: User):
-        poll = self.get_poll(poll_id)
-        if poll.creator_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this poll")
+    def delete_poll(self, poll_id: int, user: User, background_tasks: BackgroundTasks):
+        poll = self._get_poll_and_verify_creator(poll_id, user)
+
+        # Broadcast and Close connections
+        async def broadcast_and_close(pid: int):
+            await self.connection_manager.broadcast(pid, "POLL_DELETED", {"poll_id": pid})
+            await self.connection_manager.close_connections_for_poll(pid)
+
+        background_tasks.add_task(broadcast_and_close, poll_id)
 
         self.session.delete(poll)
         self.session.commit()
 
-    def update_poll(self, poll_id: int, poll_update: PollUpdate, user: User) -> Poll:
-        poll = self.get_poll(poll_id)
-        if poll.creator_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
+    def update_poll(self, poll_id: int, poll_update: PollUpdate, user: User, background_tasks: BackgroundTasks) -> Poll:
+        poll = self._get_poll_and_verify_creator(poll_id, user)
 
         poll.title = poll_update.title
         poll.description = poll_update.description
@@ -221,11 +257,11 @@ class PollService:
                     end_time=template_opt_model.end_time
                 )
             else:
-                 template = PollOptionCreate(
-                     label="Event",
-                     start_time=cutoff,
-                     end_time=cutoff + timedelta(hours=1)
-                 )
+                template = PollOptionCreate(
+                    label="Event",
+                    start_time=cutoff,
+                    end_time=cutoff + timedelta(hours=1)
+                )
 
             # Generate new options from cutoff
             new_options_models = self._generate_recurring_options(
@@ -314,13 +350,13 @@ class PollService:
 
         self.session.add(poll)
         self.session.commit()
-        self.session.refresh(poll)
-        return poll
 
-    def delete_poll_option(self, poll_id: int, option_id: int, user: User):
-        poll = self.get_poll(poll_id)
-        if poll.creator_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
+
+        # Broadcast and return the updated poll.
+        return self.broadcast_poll_update(poll.id, background_tasks, return_poll=True)
+
+    def delete_poll_option(self, poll_id: int, option_id: int, user: User, background_tasks: BackgroundTasks):
+        poll = self._get_poll_and_verify_creator(poll_id, user)
 
         option = self.session.get(PollOption, option_id)
         if not option:
@@ -331,3 +367,6 @@ class PollService:
 
         self.session.delete(option)
         self.session.commit()
+
+        # Broadcast
+        self.broadcast_poll_update(poll.id, background_tasks)

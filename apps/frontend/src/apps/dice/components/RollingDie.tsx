@@ -144,7 +144,7 @@ export const RollingDie: React.FC<RollingDieProps> = ({
       castShadow
       receiveShadow
     >
-      <Edges scale={1.01} color="#D6B15E" />
+      <Edges scale={1.01} color="#9575CD" />
     </mesh>
   );
 };

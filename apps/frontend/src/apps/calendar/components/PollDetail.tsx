@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { parseUTCDate } from '../../../utils/dateUtils';
@@ -11,6 +11,7 @@ import ConfirmModal from './Modal';
 import ShareModal from './ShareModal';
 import MonthView from '../../../components/Calendar/MonthView';
 import WeeklyScheduler, { SchedulerEvent } from '../../../components/Calendar/WeeklyScheduler'; // Replaced PollWeekView
+import { usePollWebSocket } from '../hooks/usePollWebSocket';
 
 // Helper for classes
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -61,6 +62,11 @@ interface PollWithVotes extends PollDetailData {
     options: OptionWithVotes[];
 }
 
+type WebSocketMessage =
+    | { type: 'FULL_UPDATE'; payload: PollWithVotes }
+    | { type: 'VOTE_UPDATE'; payload: { poll_option_id: number; user: User; action: 'add' | 'remove'; } }
+    | { type: 'POLL_DELETED'; payload: { poll_id: number } };
+
 const PollDetail: React.FC = () => {
     const { pollId } = useParams();
     const navigate = useNavigate();
@@ -72,6 +78,7 @@ const PollDetail: React.FC = () => {
     // Default view mode is now 'week' (Calendar)
     const [viewMode, setViewMode] = useState<'list' | 'month' | 'week'>('week');
     const [currentDate, setCurrentDate] = useState(new Date()); // For Calendar Views
+    const [wsReady, setWsReady] = useState(false);
 
     // New Option State (for List view fallback)
 
@@ -105,30 +112,100 @@ const PollDetail: React.FC = () => {
             .catch(() => { }); // Ignore error, just wont highlight
     }, []);
 
-    const fetchPoll = () => {
-        if (!pollId) return;
-        fetch(`/api/polls/${pollId}`)
-            .then(res => {
-                if (!res.ok) throw new Error('Failed to fetch poll');
-                return res.json();
-            })
-            .then(data => {
-                setPoll(data);
-                // If options exist, set currentDate to start of first option?
-                if (data.options.length > 0) {
-                    // Check if there are future options?
-                    const future = data.options.find((o: PollOption) => parseUTCDate(o.start_time) > new Date());
-                    if (future) setCurrentDate(parseUTCDate(future.start_time));
-                    else setCurrentDate(parseUTCDate(data.options[data.options.length - 1].start_time));
-                }
-            })
-            .catch(err => setError(err.message))
-            .finally(() => setLoading(false));
-    };
+
+
+    // WebSocket for real-time updates
+    const onPollUpdate = useCallback((message: WebSocketMessage) => {
+        if (!message || !message.type) return;
+
+        if (message.type === 'FULL_UPDATE') {
+            setPoll(message.payload);
+        } else if (message.type === 'VOTE_UPDATE') {
+            const { poll_option_id, user, action } = message.payload;
+
+            setPoll(prevPoll => {
+                if (!prevPoll) return null;
+
+                const updatedOptions = prevPoll.options.map(opt => {
+                    if (opt.id !== poll_option_id) return opt;
+
+                    let updatedVotes = [...opt.votes];
+                    if (action === 'add') {
+                        // Check if already voted to avoid duplicates
+                        if (!updatedVotes.some(v => v.user.id === user.id)) {
+                            updatedVotes.push({ poll_option_id, user });
+                        }
+                    } else if (action === 'remove') {
+                        updatedVotes = updatedVotes.filter(v => v.user.id !== user.id);
+                    }
+                    return { ...opt, votes: updatedVotes };
+                });
+
+                return { ...prevPoll, options: updatedOptions };
+            });
+        } else if (message.type === 'POLL_DELETED') {
+            if (message.payload.poll_id === Number(pollId)) {
+                setModalConfig({
+                    isOpen: true,
+                    title: "Event Deleted",
+                    message: "This event has been deleted by the organizer.",
+                    confirmText: "Go to Calendar",
+                    variant: 'info',
+                    onConfirm: () => {
+                        setModalConfig(prev => ({ ...prev, isOpen: false }));
+                        navigate('/apps/calendar');
+                    }
+                });
+            }
+        }
+    }, [pollId, navigate]);
+
+    const onWsOpen = useCallback(() => {
+        setWsReady(true);
+    }, []);
+
+    const onWsClose = useCallback(() => {
+        setWsReady(false);
+    }, []);
+
+    usePollWebSocket(pollId, onPollUpdate, onWsOpen, onWsClose);
 
     useEffect(() => {
-        fetchPoll();
-    }, [pollId]);
+        if (!wsReady) return;
+        const abortController = new AbortController();
+        const { signal } = abortController;
+
+        if (pollId) {
+            setLoading(true);
+            fetch(`/api/polls/${pollId}`, { signal })
+                .then(res => {
+                    if (!res.ok) throw new Error('Failed to fetch poll');
+                    return res.json();
+                })
+                .then(data => {
+                    setPoll(data);
+                    if (data.options.length > 0) {
+                        const future = data.options.find((o: PollOption) => parseUTCDate(o.start_time) > new Date());
+                        if (future) setCurrentDate(parseUTCDate(future.start_time));
+                        else setCurrentDate(parseUTCDate(data.options[data.options.length - 1].start_time));
+                    }
+                })
+                .catch(err => {
+                    if (err.name !== 'AbortError') {
+                        setError(err.message);
+                    }
+                })
+                .finally(() => {
+                    if (!signal.aborted) {
+                        setLoading(false);
+                    }
+                });
+        }
+
+        return () => {
+            abortController.abort();
+        };
+    }, [pollId, wsReady]);
 
     const handleVote = async (optionId: number) => {
         if (togglingOptionId) return; // Prevent double click
@@ -143,8 +220,7 @@ const PollDetail: React.FC = () => {
 
             if (!res.ok) throw new Error('Vote failed');
 
-            // Refresh poll data to see updated votes
-            await fetchPoll();
+
         } catch (error) {
             console.error(error);
             alert('Failed to cast vote.');
@@ -202,7 +278,6 @@ const PollDetail: React.FC = () => {
                 })
             });
             if (!res.ok) throw new Error('Failed to add option');
-            await fetchPoll();
         } catch (error) {
             console.error(error);
             alert('Failed to add option.');
@@ -219,7 +294,8 @@ const PollDetail: React.FC = () => {
                     method: 'DELETE',
                 });
                 if (!res.ok) throw new Error('Failed to delete option');
-                await fetchPoll();
+
+                // await fetchPoll(); // Removed in favor of WS
             } catch (error) {
                 console.error(error);
                 alert('Failed to delete option.');

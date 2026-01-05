@@ -1,19 +1,24 @@
 from typing import Optional
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
-from fastapi import HTTPException, status
+from schemas import PollReadWithDetails, UserRead
+from fastapi import HTTPException, status, BackgroundTasks
 from models import Vote, PollOption, User, Poll
 from services.notification import NotificationService, NoOpNotificationService
+from managers.connection_manager import ConnectionManager
+from fastapi.encoders import jsonable_encoder
 import logging
 
 logger = logging.getLogger(__name__)
 
 class VoteService:
-    def __init__(self, session: Session, notification_service: NotificationService = NoOpNotificationService()):
+    def __init__(self, session: Session, connection_manager: ConnectionManager, notification_service: NotificationService = NoOpNotificationService()):
         self.session = session
+        self.connection_manager = connection_manager
         self.notification_service = notification_service
 
-    def cast_vote(self, user: User, poll_option_id: int) -> dict:
+
+    def cast_vote(self, user: User, poll_option_id: int, background_tasks: BackgroundTasks) -> dict:
         """
         Toggles a vote for a specific poll option.
         If the vote exists, it removes it.
@@ -33,10 +38,24 @@ class VoteService:
         )
         existing_vote = self.session.exec(vote_statement).first()
 
+
+
         if existing_vote:
             # Toggle OFF: Delete vote
             self.session.delete(existing_vote)
             self.session.commit()
+
+            # Broadcast Granular Update
+            background_tasks.add_task(
+                self.connection_manager.broadcast, 
+                poll_option.poll_id, 
+                "VOTE_UPDATE", 
+                {"poll_option_id": poll_option_id, "user": jsonable_encoder(UserRead.from_orm(user)), "action": "remove"}
+            )
+            
+            # Fallback/Redundancy: We might still want to trigger a full update eventually or lazily, 
+            # but for now we rely on the granular update for speed.
+
             return {"status": "removed", "poll_option_id": poll_option_id}
         else:
             # Toggle ON: Create vote
@@ -44,6 +63,14 @@ class VoteService:
             self.session.add(new_vote)
             self.session.commit()
             self.session.refresh(new_vote)
+            
+            # Broadcast Granular Update
+            background_tasks.add_task(
+                self.connection_manager.broadcast, 
+                poll_option.poll_id, 
+                "VOTE_UPDATE", 
+                {"poll_option_id": poll_option_id, "user": jsonable_encoder(UserRead.from_orm(user)), "action": "add"}
+            )
 
             # Notify
             try:

@@ -107,20 +107,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                             </motion.div>
                         </Link>
 
-                        {/* Dice RNG App Card */}
+                        {/* The Oracle's Die App Card */}
                         <Link to="/apps/dice">
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ delay: 0.7, duration: 0.8 }}
-                                className="col-span-1 h-full min-h-[200px] border border-jade-200 bg-white/40 backdrop-blur-sm rounded-xl p-6 flex flex-col items-center justify-center text-center hover:shadow-lg hover:shadow-jade-100/50 transition-all duration-500 cursor-pointer group"
+                                className="col-span-1 h-full min-h-[200px] border border-arcane-200 bg-gradient-to-br from-white/40 to-arcane-50/30 backdrop-blur-sm rounded-xl p-6 flex flex-col items-center justify-center text-center hover:shadow-lg hover:shadow-arcane-200/50 transition-all duration-500 cursor-pointer group"
                             >
-                                <div className="bg-jade-50 p-4 rounded-full mb-4 group-hover:bg-jade-100 transition-colors duration-500">
-                                    <Dices className="text-jade-500 w-6 h-6" />
+                                <div className="bg-arcane-50 p-4 rounded-full mb-4 group-hover:bg-arcane-100 transition-colors duration-500">
+                                    <Dices className="text-arcane-500 w-6 h-6" />
                                 </div>
-                                <h3 className="text-lg font-serif text-ink mb-2">D20 Randomizer</h3>
-                                <p className="text-sm text-jade-600 font-sans leading-relaxed">
-                                    Roll fair integers for any range—<br />with a d20 twist.
+                                <h3 className="text-lg font-serif text-ink mb-2">The Oracle's Die</h3>
+                                <p className="text-sm text-arcane-600 font-sans leading-relaxed">
+                                    Let ancient icosahedral<br />artifacts reveal your fate.
                                 </p>
                             </motion.div>
                         </Link>

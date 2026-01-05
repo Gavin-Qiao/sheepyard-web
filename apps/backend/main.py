@@ -4,8 +4,8 @@ from database import engine
 from sqlalchemy import text
 # Import models to ensure they are registered with SQLModel
 from models import User, Poll, PollOption, Vote, UserMention
-
-from routers import auth, polls, votes, discord, users, profile
+from managers.connection_manager import ConnectionManager
+from routers import auth, polls, votes, discord, users, profile, ws
 
 print("Initializing FastAPI app...")
 app = FastAPI()
@@ -16,6 +16,7 @@ app.include_router(votes.router, prefix="/api")
 app.include_router(discord.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(profile.router, prefix="/api")
+app.include_router(ws.router)
 
 def create_db_and_tables():
     print("Creating database tables...")
@@ -119,6 +120,7 @@ from tasks import check_deadlines
 @app.on_event("startup")
 def on_startup():
     print("Startup event triggered.")
+    app.state.connection_manager = ConnectionManager()
     create_db_and_tables()
     asyncio.create_task(check_deadlines())
 
