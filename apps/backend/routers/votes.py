@@ -12,7 +12,7 @@ from services.notification import NoOpNotificationService
 router = APIRouter()
 
 @router.post("/votes")
-async def vote(
+def vote(
     vote_data: VoteCreate,
     background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),

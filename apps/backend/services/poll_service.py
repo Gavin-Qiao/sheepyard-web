@@ -21,6 +21,14 @@ class PollService:
         self.connection_manager = connection_manager
         self.notification_service = notification_service
 
+    def _get_poll_and_verify_creator(self, poll_id: int, user: User) -> Poll:
+        poll = self.session.get(Poll, poll_id)
+        if not poll:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poll not found")
+        if poll.creator_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
+        return poll
+
     async def broadcast_event(self, poll_id: int, event_type: str, payload: dict):
         """
         Broadcasts a structured event to all connected clients for a poll.
@@ -180,11 +188,7 @@ class PollService:
         return self.session.exec(statement).all()
 
     def add_poll_option(self, poll_id: int, option_create: PollOptionCreate, user: User, background_tasks: BackgroundTasks) -> PollOption:
-        poll = self.session.get(Poll, poll_id)
-        if not poll:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poll not found")
-        if poll.creator_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
+        poll = self._get_poll_and_verify_creator(poll_id, user)
 
         db_option = PollOption(
             poll_id=poll_id,
@@ -202,15 +206,7 @@ class PollService:
         return db_option
 
     def delete_poll(self, poll_id: int, user: User, background_tasks: BackgroundTasks):
-        poll = self.session.get(Poll, poll_id)
-        if not poll:
-             # If poll is not found, it might be already deleted.
-             # We can still try to broadcast deletion just in case, but usually we throw 404 or ignore.
-             # Standard behavior is 404.
-             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poll not found")
-
-        if poll.creator_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this poll")
+        poll = self._get_poll_and_verify_creator(poll_id, user)
 
         # Broadcast DELETION event before deleting data
         background_tasks.add_task(self.connection_manager.broadcast, poll_id, "POLL_DELETED", {"poll_id": poll_id})
@@ -220,11 +216,7 @@ class PollService:
         self.session.commit()
 
     def update_poll(self, poll_id: int, poll_update: PollUpdate, user: User, background_tasks: BackgroundTasks) -> Poll:
-        poll = self.session.get(Poll, poll_id)
-        if not poll:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poll not found")
-        if poll.creator_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
+        poll = self._get_poll_and_verify_creator(poll_id, user)
 
         poll.title = poll_update.title
         poll.description = poll_update.description
@@ -361,11 +353,7 @@ class PollService:
         return self.broadcast_poll_update(poll.id, background_tasks, return_poll=True)
 
     def delete_poll_option(self, poll_id: int, option_id: int, user: User, background_tasks: BackgroundTasks):
-        poll = self.session.get(Poll, poll_id)
-        if not poll:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poll not found")
-        if poll.creator_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to edit this poll")
+        poll = self._get_poll_and_verify_creator(poll_id, user)
 
         option = self.session.get(PollOption, option_id)
         if not option:
